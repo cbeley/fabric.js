@@ -42,6 +42,7 @@
     /**
      * Background color of canvas instance
      * @type String
+     * @default
      */
     backgroundColor: '',
 
@@ -49,12 +50,14 @@
      * Background image of canvas instance
      * Should be set via {@link fabric.StaticCanvas#setBackgroundImage}
      * @type String
+     * @default
      */
     backgroundImage: '',
 
     /**
      * Opacity of the background image of the canvas instance
      * @type Float
+     * @default
      */
     backgroundImageOpacity: 1,
 
@@ -62,6 +65,7 @@
      * Indicates whether the background image should be stretched to fit the
      * dimensions of the canvas instance.
      * @type Boolean
+     * @default
      */
     backgroundImageStretch: true,
 
@@ -69,53 +73,68 @@
      * Overlay image of canvas instance
      * Should be set via {@link fabric.StaticCanvas#setOverlayImage}
      * @type String
+     * @default
      */
     overlayImage: '',
 
     /**
      * Left offset of overlay image (if present)
      * @type Number
+     * @default
      */
     overlayImageLeft: 0,
 
     /**
      * Top offset of overlay image (if present)
      * @type Number
+     * @default
      */
     overlayImageTop: 0,
 
     /**
      * Indicates whether toObject/toDatalessObject should include default values
      * @type Boolean
+     * @default
      */
     includeDefaultValues: true,
 
     /**
      * Indicates whether objects' state should be saved
      * @type Boolean
+     * @default
      */
     stateful: true,
 
     /**
-     * Indicates whether {@link fabric.Canvas.prototype.add} should also re-render canvas.
-     * Disabling this option could give a great performance boost when adding a lot of objects to canvas at once
-     * (followed by a manual rendering after addition)
+     * Indicates whether {@link fabric.Collection.add}, {@link fabric.Collection.insertAt} and {@link fabric.Collection.remove} should also re-render canvas.
+     * Disabling this option could give a great performance boost when adding/removing a lot of objects to/from canvas at once
+     * (followed by a manual rendering after addition/deletion)
      * @type Boolean
+     * @default
      */
-    renderOnAddition: true,
+    renderOnAddRemove: true,
 
     /**
      * Function that determines clipping of entire canvas area
      * Being passed context as first argument. See clipping canvas area in {@link https://github.com/kangax/fabric.js/wiki/FAQ}
      * @type Function
+     * @default
      */
     clipTo: null,
 
     /**
      * Indicates whether object controls (borders/controls) are rendered above overlay image
      * @type Boolean
+     * @default
      */
     controlsAboveOverlay: false,
+
+    /**
+     * Indicates whether the browser can be scrolled when using a touchscreen and dragging on the canvas
+     * @type Boolean
+     * @default
+     */
+     allowTouchScrolling: false,
 
     /**
      * Callback; invoked right before object is about to be scaled/rotated
@@ -125,9 +144,11 @@
       /* NOOP */
     },
 
-     /**
-      * @private
-      */
+    /**
+     * @private
+     * @param {HTMLElement | String} el &lt;canvas> element to initialize instance on
+     * @param {Object} [options] Options object
+     */
     _initStatic: function(el, options) {
       this._objects = [];
 
@@ -258,7 +279,7 @@
 
     /**
      * @private
-     * @param {Object} [options]
+     * @param {Object} [options] Options object
      */
     _initOptions: function (options) {
       for (var prop in options) {
@@ -277,6 +298,7 @@
     /**
      * Creates a bottom canvas
      * @private
+     * @param {HTMLElement} [canvasEl]
      */
     _createLowerCanvas: function (canvasEl) {
       this.lowerCanvasEl = fabric.util.getById(canvasEl) || this._createCanvasElement();
@@ -329,7 +351,7 @@
 
     /**
      * Sets dimensions (width, height) of this canvas instance
-     * @param {Object} dimensions
+     * @param {Object} dimensions Object with width/height properties
      * @return {fabric.Canvas} thisArg
      * @chainable
      */
@@ -661,7 +683,7 @@
 
     /**
      * Returs dataless JSON representation of canvas
-     * @param {Array} propertiesToInclude
+     * @param {Array} propertiesToInclude Any properties that you might want to additionally include in the output
      * @return {String} json string
      */
     toDatalessJSON: function (propertiesToInclude) {
@@ -670,7 +692,7 @@
 
     /**
      * Returns object representation of canvas
-     * @param {Array} propertiesToInclude
+     * @param {Array} propertiesToInclude Any properties that you might want to additionally include in the output
      * @return {Object} object representation of an instance
      */
     toObject: function (propertiesToInclude) {
@@ -679,7 +701,7 @@
 
     /**
      * Returns dataless object representation of canvas
-     * @param {Array} propertiesToInclude
+     * @param {Array} propertiesToInclude Any properties that you might want to additionally include in the output
      * @return {Object} object representation of an instance
      */
     toDatalessObject: function (propertiesToInclude) {
@@ -736,7 +758,7 @@
      * Returns SVG representation of canvas
      * @function
      * @param {Object} [options] Options for SVG output (suppressPreamble: true/false (if true xml tag is not included),
-     * viewBox: {x, y, width, height} to define the svg output viewBox)
+     * viewBox: {x, y, width, height} to define the svg output viewBox), encoding default: UTF-8
      * @return {String}
      */
     toSVG: function(options) {
@@ -745,7 +767,7 @@
 
       if (!options.suppressPreamble) {
         markup.push(
-          '<?xml version="1.0" standalone="no" ?>',
+          '<?xml version="1.0" encoding="', (options.encoding || 'UTF-8'), '" standalone="no" ?>',
             '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" ',
               '"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n'
         );
@@ -989,6 +1011,7 @@
     /**
      * @static
      * @type String
+     * @default
      */
     EMPTY_JSON: '{"objects": [], "background": "white"}',
 
@@ -1069,7 +1092,7 @@
   /**
    * Returs JSON representation of canvas
    * @function
-   * @param {Array} propertiesToInclude
+   * @param {Array} propertiesToInclude Any properties that you might want to additionally include in the output
    * @return {String} json string
    */
   fabric.StaticCanvas.prototype.toJSON = fabric.StaticCanvas.prototype.toObject;

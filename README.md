@@ -12,7 +12,7 @@ Using Fabric.js, you can create and populate objects on canvas; objects like sim
 
 ### Goals
 
-- Unit tested (1700+ tests at the moment)
+- Unit tested (1800+ tests at the moment)
 - Modular (~60 small "classes", modules, mixins)
 - Cross-browser
 - [Fast](https://github.com/kangax/fabric.js/wiki/Focus-on-speed)
@@ -105,7 +105,7 @@ These are the optional modules that could be specified for inclusion, when build
 - **freedrawing** — Adds support for free drawing
 - **gestures** — Adds support for multitouch gestures with help of [Event.js](https://github.com/mudcube/Event.js)
 - **object_straightening** — Adds support for rotating an object to one of 0, 90, 180, 270, etc. depending on which is angle is closer.
-- **animation** — Adds support for animation (fabric.util.animate, fabric.util.requestAnimFrame, fabric.Object#animate, fabric.Canvas#fxCenterObjectH/#fxCenterObjectV/#fxRemove)
+- **animation** — Adds support for animation (`fabric.util.animate`, `fabric.util.requestAnimFrame`, `fabric.Object#animate`, `fabric.Canvas#fxCenterObjectH/#fxCenterObjectV/#fxRemove`)
 
 Additional flags for build script are:
 

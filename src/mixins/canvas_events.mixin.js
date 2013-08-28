@@ -97,7 +97,7 @@
      * @param {Event} e Event object fired on mousemove
      */
     _onMouseMove: function (e) {
-      e.preventDefault && e.preventDefault();
+      !this.allowTouchScrolling && e.preventDefault && e.preventDefault();
       this.__onMouseMove(e);
     },
 
@@ -171,9 +171,6 @@
       this.renderAll();
 
       this._setCursorFromEvent(e, target);
-
-      // fix for FF
-      this._setCursor('');
 
       var _this = this;
       setTimeout(function () {

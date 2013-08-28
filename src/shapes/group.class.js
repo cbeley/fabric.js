@@ -160,9 +160,8 @@
     },
 
     /**
-     * @param delegatedProperties
-     * @type Object
      * Properties that are delegated to group objects when reading/writing
+     * @param {Object} delegatedProperties
      */
     delegatedProperties: {
       fill:             true,
@@ -433,6 +432,7 @@
   /**
    * Returns {@link fabric.Group} instance from an object representation
    * @static
+   * @memberOf fabric.Group
    * @param {Object} object Object to create a group from
    * @param {Object} [options] Options object
    * @return {fabric.Group} An instance of fabric.Group
@@ -447,7 +447,9 @@
   /**
    * Indicates that instances of this type are async
    * @static
+   * @memberOf fabric.Group
    * @type Boolean
+   * @default
    */
   fabric.Group.async = true;
 

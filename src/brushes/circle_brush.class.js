@@ -20,21 +20,11 @@ fabric.CircleBrush = fabric.util.createClass( fabric.BaseBrush, /** @lends fabri
     this.canvas = canvas;
     this.points = [ ];
   },
-
   /**
-   * Invoked on mouse down
-   */
-  onMouseDown: function() {
-    this.points.length = 0;
-    this.canvas.clearContext(this.canvas.contextTop);
-    this.setShadowStyles();
-  },
-
-  /**
-   * Invoked on mouse move
-   * @param {Object} pointer
-   */
-  onMouseMove: function(pointer) {
+  * Invoked inside on mouse down and mouse move
+  * @param {Object} pointer
+  */
+  drawDot: function(pointer) {
     var point = this.addPoint(pointer);
     var ctx = this.canvas.contextTop;
 
@@ -46,11 +36,29 @@ fabric.CircleBrush = fabric.util.createClass( fabric.BaseBrush, /** @lends fabri
   },
 
   /**
+   * Invoked on mouse down
+   */
+  onMouseDown: function(pointer) {
+    this.points.length = 0;
+    this.canvas.clearContext(this.canvas.contextTop);
+    this.setShadowStyles();
+    this.drawDot(pointer);
+  },
+
+  /**
+   * Invoked on mouse move
+   * @param {Object} pointer
+   */
+  onMouseMove: function(pointer) {
+    this.drawDot(pointer);
+  },
+
+  /**
    * Invoked on mouse up
    */
   onMouseUp: function() {
-    var originalRenderOnAddition = this.canvas.renderOnAddition;
-    this.canvas.renderOnAddition = false;
+    var originalRenderOnAddRemove = this.canvas.renderOnAddRemove;
+    this.canvas.renderOnAddRemove = false;
 
     for (var i = 0, len = this.points.length; i < len; i++) {
       var point = this.points[i];
@@ -76,7 +84,7 @@ fabric.CircleBrush = fabric.util.createClass( fabric.BaseBrush, /** @lends fabri
 
     this.canvas.clearContext(this.canvas.contextTop);
     this.removeShadowStyles();
-    this.canvas.renderOnAddition = originalRenderOnAddition;
+    this.canvas.renderOnAddRemove = originalRenderOnAddRemove;
     this.canvas.renderAll();
   },
 

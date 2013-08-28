@@ -3,6 +3,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
   /**
    * Animation duration (in ms) for fx* methods
    * @type Number
+   * @default
    */
   FX_DURATION: 500,
 
@@ -109,7 +110,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
   }
 });
 
-fabric.util.object.extend(fabric.Object.prototype, {
+fabric.util.object.extend(fabric.Object.prototype, /** @lends fabric.Object.prototype */ {
   /**
    * Animates object's properties
    * @param {String|Object} property to animate (if string) or properties to animate (if object)
@@ -148,10 +149,10 @@ fabric.util.object.extend(fabric.Object.prototype, {
 
   /**
    * @private
-   * @param {String} property
-   * @param {String} to
-   * @param {Object} [options]
-   * @param {Boolean} [skipCallbacks]
+   * @param {String} property Property to animate
+   * @param {String} to Value to animate to
+   * @param {Object} [options] Options object
+   * @param {Boolean} [skipCallbacks] When true, callbacks like onchange and oncomplete are not invoked
    */
   _animate: function(property, to, options, skipCallbacks) {
     var obj = this, propPair;
@@ -190,7 +191,9 @@ fabric.util.object.extend(fabric.Object.prototype, {
       byValue: options.by,
       easing: options.easing,
       duration: options.duration,
-      abort: options.abort,
+      abort: options.abort && function() {
+        return options.abort.call(obj);
+      },
       onChange: function(value) {
         if (propPair) {
           obj[propPair[0]][propPair[1]] = value;

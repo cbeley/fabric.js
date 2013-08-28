@@ -89,25 +89,25 @@
     }
   };
 
-  fabric.loadSVGFromURL = function(url, callback) {
+  fabric.loadSVGFromURL = function(url, callback, reviver) {
     url = url.replace(/^\n\s*/, '').replace(/\?.*$/, '').trim();
     if (url.indexOf('http') !== 0) {
       request_fs(url, function(body) {
-        fabric.loadSVGFromString(body, callback);
+        fabric.loadSVGFromString(body, callback, reviver);
       });
     }
     else {
       request(url, '', function(body) {
-        fabric.loadSVGFromString(body, callback);
+        fabric.loadSVGFromString(body, callback, reviver);
       });
     }
   };
 
-  fabric.loadSVGFromString = function(string, callback) {
+  fabric.loadSVGFromString = function(string, callback, reviver) {
     var doc = new DOMParser().parseFromString(string);
     fabric.parseSVGDocument(doc.documentElement, function(results, options) {
-      callback(results, options);
-    });
+      callback && callback(results, options);
+    }, reviver);
   };
 
   fabric.util.getScript = function(url, callback) {
@@ -122,8 +122,10 @@
       var oImg = new fabric.Image(img);
 
       oImg._initConfig(object);
-      oImg._initFilters(object);
-      callback(oImg);
+      oImg._initFilters(object, function(filters) {
+        oImg.filters = filters || [ ];
+        callback && callback(oImg);
+      });
     });
   };
 

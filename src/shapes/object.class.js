@@ -217,6 +217,7 @@
     /**
      * Shadow object representing shadow of this shape
      * @type fabric.Shadow
+     * @default
      */
     shadow:                   null,
 
@@ -418,7 +419,7 @@
 
     /**
      * Sets object's properties from options
-     * @param {Object} [options]
+     * @param {Object} [options] Options object
      */
     setOptions: function(options) {
       for (var prop in options) {
@@ -698,7 +699,7 @@
 
     /**
      * Sets sourcePath of an object
-     * @param {String} value
+     * @param {String} value Value to set sourcePath to
      * @return {fabric.Object} thisArg
      * @chainable
      */
@@ -1127,6 +1128,7 @@
   /**
    * Alias for {@link fabric.Object.prototype.setAngle}
    * @alias rotate -> setAngle
+   * @memberof fabric.Object
    */
   fabric.Object.prototype.rotate = fabric.Object.prototype.setAngle;
 
@@ -1135,6 +1137,7 @@
   /**
    * Defines the number of fraction digits when serializing object values. You can use it to increase/decrease precision of such values like left, top, scaleX, scaleY, etc.
    * @static
+   * @memberof fabric.Object
    * @constant
    * @type Number
    */
@@ -1142,6 +1145,7 @@
 
   /**
    * @static
+   * @memberof fabric.Object
    * @type Number
    */
   fabric.Object.__uid = 0;

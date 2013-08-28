@@ -1,7 +1,7 @@
 /* build: `node build.js modules=ALL exclude=gestures` */
 /*! Fabric.js Copyright 2008-2013, Printio (Juriy Zaytsev, Maxim Chernyak) */
 
-var fabric = fabric || { version: "1.2.8" };
+var fabric = fabric || { version: "1.2.10" };
 
 if (typeof exports !== 'undefined') {
   exports.fabric = fabric;
@@ -1831,8 +1831,8 @@ if (typeof console !== 'undefined') {
    * @deprecated `fire` deprecated since 1.0.7 (use `trigger` instead)
    * @memberOf fabric.Observable
    * @alias trigger
-   * @param {String} eventName
-   * @param {Object} [options]
+   * @param {String} eventName Event name to fire
+   * @param {Object} [options] Options object
    */
   function fire(eventName, options) {
     if (!this.__eventListeners) {
@@ -1867,7 +1867,7 @@ if (typeof console !== 'undefined') {
 fabric.Collection = {
 
   /**
-   * Adds objects to collection, then renders canvas (if `renderOnAddition` is not `false`)
+   * Adds objects to collection, then renders canvas (if `renderOnAddRemove` is not `false`)
    * Objects should be instances of (or inherit from) fabric.Object
    * @param [...] Zero or more fabric instances
    * @return {Self} thisArg
@@ -1877,16 +1877,16 @@ fabric.Collection = {
     for (var i = arguments.length; i--; ) {
       this._onObjectAdded(arguments[i]);
     }
-    this.renderOnAddition && this.renderAll();
+    this.renderOnAddRemove && this.renderAll();
     return this;
   },
 
   /**
-   * Inserts an object into collection at specified index and renders canvas
+   * Inserts an object into collection at specified index, then renders canvas (if `renderOnAddRemove` is not `false`)
    * An object should be an instance of (or inherit from) fabric.Object
-   * @param object {Object} Object to insert
-   * @param index {Number} index to insert object at
-   * @param nonSplicing {Boolean} when `true`, no splicing (shifting) of objects occurs
+   * @param {Object} object Object to insert
+   * @param {Number} index Index to insert object at
+   * @param {Boolean} nonSplicing When `true`, no splicing (shifting) of objects occurs
    * @return {Self} thisArg
    */
   insertAt: function (object, index, nonSplicing) {
@@ -1898,19 +1898,18 @@ fabric.Collection = {
       objects.splice(index, 0, object);
     }
     this._onObjectAdded(object);
-    this.renderOnAddition && this.renderAll();
+    this.renderOnAddRemove && this.renderAll();
     return this;
   },
 
   /**
-   * Removes an object from a group
-   * @param {Object} object
+   * Removes an object from a collection, then renders canvas (if `renderOnAddRemove` is not `false`)
+   * @param {Object} object Object to remove
    * @return {Self} thisArg
    */
   remove: function(object) {
-
-    var objects = this.getObjects();
-    var index = objects.indexOf(object);
+    var objects = this.getObjects(),
+        index = objects.indexOf(object);
 
     // only call onObjectRemoved if an object was actually removed
     if (index !== -1) {
@@ -1918,7 +1917,7 @@ fabric.Collection = {
       this._onObjectRemoved(object);
     }
 
-    this.renderAll && this.renderAll();
+    this.renderOnAddRemove && this.renderAll();
     return object;
   },
 
@@ -2107,13 +2106,34 @@ fabric.Collection = {
    }
 
   /**
-    * Returns klass "Class" object of given fabric.Object type
+    * Returns klass "Class" object of given namespace
     * @memberOf fabric.util
     * @param {String} type Type of object (eg. 'circle')
+    * @param {String} namespace Namespace to get klass "Class" object from
     * @return {Object} klass "Class"
     */
-  function getKlass(type) {
-    return fabric[fabric.util.string.camelize(fabric.util.string.capitalize(type))];
+  function getKlass(type, namespace) {
+    return resolveNamespace(namespace)[fabric.util.string.camelize(fabric.util.string.capitalize(type))];
+  }
+
+  /**
+    * Returns object of given namespace
+    * @memberOf fabric.util
+    * @param {String} namespace Namespace string e.g. 'fabric.Image.filter' or 'fabric'
+    * @return {Object} Object for given namespace (default fabric)
+    */
+  function resolveNamespace(namespace) {
+    if (!namespace) return fabric;
+
+    var parts = namespace.split('.'),
+        len = parts.length,
+        obj = fabric.window;
+
+    for (var i = 0; i < len; ++i) {
+      obj = obj[parts[i]];
+    }
+
+    return obj;
   }
 
   /**
@@ -2145,7 +2165,7 @@ fabric.Collection = {
    * @param {Array} objects Objects to enliven
    * @param {Function} callback Callback to invoke when all objects are created
    */
-  function enlivenObjects(objects, callback) {
+  function enlivenObjects(objects, callback, namespace) {
 
     function onLoaded() {
       if (++numLoadedObjects === numTotalObjects) {
@@ -2163,7 +2183,7 @@ fabric.Collection = {
       if (!o.type) {
         return;
       }
-      var klass = fabric.util.getKlass(o.type);
+      var klass = fabric.util.getKlass(o.type, namespace);
       if (klass.async) {
         klass.fromObject(o, function (o, error) {
           if (!error) {
@@ -2280,7 +2300,7 @@ fabric.Collection = {
    * Creates image element (works on client and node)
    * @static
    * @memberOf fabric.util
-   * @return {Image} image element
+   * @return {HTMLImageElement} HTML image element
    */
   function createImage() {
     return fabric.isLikelyNode
@@ -2497,6 +2517,7 @@ fabric.Collection = {
   fabric.util.getRandomInt = getRandomInt;
   fabric.util.falseFunction = falseFunction;
   fabric.util.getKlass = getKlass;
+  fabric.util.resolveNamespace = resolveNamespace;
   fabric.util.loadImage = loadImage;
   fabric.util.enlivenObjects = enlivenObjects;
   fabric.util.groupSVGElements = groupSVGElements;
@@ -2968,11 +2989,11 @@ fabric.util.string = {
   }
 
   /**
-   * Helper for creation of "classes". Note that pr
+   * Helper for creation of "classes".
+   * @memberOf fabric.util
    * @param parent optional "Class" to inherit from
    * @param properties Properties shared by all instances of this class
    *                  (be careful modifying objects defined here as this would affect all instances)
-   * @memberOf fabric.util
    */
   function createClass() {
     var parent = null,
@@ -3157,9 +3178,8 @@ fabric.util.string = {
 
   /**
    * Adds an event listener to an element
-   * @mthod addListener
-   * @memberOf fabric.util
    * @function
+   * @memberOf fabric.util
    * @param {HTMLElement} element
    * @param {String} eventName
    * @param {Function} handler
@@ -3168,9 +3188,8 @@ fabric.util.string = {
 
   /**
    * Removes an event listener from an element
-   * @mthod removeListener
-   * @memberOf fabric.util
    * @function
+   * @memberOf fabric.util
    * @param {HTMLElement} element
    * @param {String} eventName
    * @param {Function} handler
@@ -4156,7 +4175,10 @@ fabric.util.string = {
    */
   function _setStrokeFillOpacity(attributes) {
     for (var attr in colorAttributes) {
+
       if (!attributes[attr] || typeof attributes[colorAttributes[attr]] === 'undefined') continue;
+
+      if (attributes[attr].indexOf('url(') === 0) continue;
 
       var color = new fabric.Color(attributes[attr]);
       attributes[attr] = color.setAlpha(toFixed(color.getAlpha() * attributes[colorAttributes[attr]], 2)).toRgba();
@@ -5648,6 +5670,7 @@ fabric.util.string = {
    * Regex matching color in RGB or RGBA formats (ex: rgb(0, 0, 0), rgba(255, 100, 10, 0.5), rgba( 255 , 100 , 10 , 0.5 ), rgb(1,1,1), rgba(100%, 60%, 10%, 0.5))
    * @static
    * @field
+   * @memberOf fabric.Color
    */
   fabric.Color.reRGBa = /^rgba?\(\s*(\d{1,3}\%?)\s*,\s*(\d{1,3}\%?)\s*,\s*(\d{1,3}\%?)\s*(?:\s*,\s*(\d+(?:\.\d+)?)\s*)?\)$/;
 
@@ -5655,6 +5678,7 @@ fabric.util.string = {
    * Regex matching color in HSL or HSLA formats (ex: hsl(200, 80%, 10%), hsla(300, 50%, 80%, 0.5), hsla( 300 , 50% , 80% , 0.5 ))
    * @static
    * @field
+   * @memberOf fabric.Color
    */
   fabric.Color.reHSLa = /^hsla?\(\s*(\d{1,3})\s*,\s*(\d{1,3}\%)\s*,\s*(\d{1,3}\%)\s*(?:\s*,\s*(\d+(?:\.\d+)?)\s*)?\)$/;
 
@@ -5662,13 +5686,16 @@ fabric.util.string = {
    * Regex matching color in HEX format (ex: #FF5555, 010155, aff)
    * @static
    * @field
+   * @memberOf fabric.Color
    */
   fabric.Color.reHex = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i;
 
   /**
-   * Map of the 16 basic color names with HEX code
+   * Map of the 17 basic color names with HEX code
    * @static
    * @field
+   * @memberOf fabric.Color
+   * @see: http://www.w3.org/TR/CSS2/syndata.html#color-units
    */
   fabric.Color.colorNameMap = {
     'aqua':    '#00FFFF',
@@ -5681,6 +5708,7 @@ fabric.util.string = {
     'maroon':  '#800000',
     'navy':    '#000080',
     'olive':   '#808000',
+    'orange':  '#FFA500',
     'purple':  '#800080',
     'red':     '#FF0000',
     'silver':  '#C0C0C0',
@@ -5697,16 +5725,17 @@ fabric.util.string = {
    * @return {Number}
    */
   function hue2rgb(p, q, t){
-      if(t < 0) t += 1;
-      if(t > 1) t -= 1;
-      if(t < 1/6) return p + (q - p) * 6 * t;
-      if(t < 1/2) return q;
-      if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-      return p;
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q - p) * 6 * t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    return p;
   }
 
   /**
    * Returns new color object, when given a color in RGB format
+   * @memberOf fabric.Color
    * @param {String} color ex: rgb(0-255,0-255,0-255)
    * @return {fabric.Color}
    */
@@ -5716,6 +5745,7 @@ fabric.util.string = {
 
   /**
    * Returns array represenatation (ex: [100, 100, 200, 1]) of a color that's in RGB or RGBA format
+   * @memberOf fabric.Color
    * @param {String} color ex: rgb(0-255,0-255,0-255), rgb(0%-100%,0%-100%,0%-100%)
    * @return {Array} source
    */
@@ -5739,6 +5769,7 @@ fabric.util.string = {
    * Returns new color object, when given a color in RGBA format
    * @static
    * @function
+   * @memberOf fabric.Color
    * @param {String} color
    * @return {fabric.Color}
    */
@@ -5747,6 +5778,7 @@ fabric.util.string = {
   /**
    * Returns new color object, when given a color in HSL format
    * @param {String} color ex: hsl(0-260,0%-100%,0%-100%)
+   * @memberOf fabric.Color
    * @return {fabric.Color}
    */
   fabric.Color.fromHsl = function(color) {
@@ -5756,6 +5788,7 @@ fabric.util.string = {
   /**
    * Returns array represenatation (ex: [100, 100, 200, 1]) of a color that's in HSL or HSLA format.
    * Adapted from <a href="https://rawgithub.com/mjijackson/mjijackson.github.com/master/2008/02/rgb-to-hsl-and-rgb-to-hsv-color-model-conversion-algorithms-in-javascript.html">https://github.com/mjijackson</a>
+   * @memberOf fabric.Color
    * @param {String} color ex: hsl(0-360,0%-100%,0%-100%) or hsla(0-360,0%-100%,0%-100%, 0-1)
    * @return {Array} source
    * @see http://http://www.w3.org/TR/css3-color/#hsl-color
@@ -5793,6 +5826,7 @@ fabric.util.string = {
    * Returns new color object, when given a color in HSLA format
    * @static
    * @function
+   * @memberOf fabric.Color
    * @param {String} color
    * @return {fabric.Color}
    */
@@ -5801,6 +5835,7 @@ fabric.util.string = {
   /**
    * Returns new color object, when given a color in HEX format
    * @static
+   * @memberOf fabric.Color
    * @return {fabric.Color}
    */
   fabric.Color.fromHex = function(color) {
@@ -5810,6 +5845,7 @@ fabric.util.string = {
   /**
    * Returns array represenatation (ex: [100, 100, 200, 1]) of a color that's in HEX format
    * @static
+   * @memberOf fabric.Color
    * @param {String} color ex: FF5555
    * @return {Array} source
    */
@@ -5833,6 +5869,7 @@ fabric.util.string = {
   /**
    * Returns new color object, when given color in array representation (ex: [200, 100, 100, 0.5])
    * @static
+   * @memberOf fabric.Color
    * @param {Array} source
    * @return {fabric.Color}
    */
@@ -6067,6 +6104,8 @@ fabric.util.string = {
      * Returns {@link fabric.Gradient} instance from an SVG element
      * @static
      * @memberof fabric.Gradient
+     * @param {SVGGradientElement} el SVG gradient element
+     * @param {Object} instance
      * @see http://www.w3.org/TR/SVG/pservers.html#LinearGradientElement
      * @see http://www.w3.org/TR/SVG/pservers.html#RadialGradientElement
      */
@@ -6148,9 +6187,9 @@ fabric.util.string = {
     /**
      * Returns {@link fabric.Gradient} instance from its object representation
      * @static
+     * @memberof fabric.Gradient
      * @param {Object} obj
      * @param {Object} [options] Options object
-     * @memberof fabric.Gradient
      */
     forObject: function(obj, options) {
       options || (options = { });
@@ -6219,24 +6258,27 @@ fabric.Pattern = fabric.util.createClass(/** @lends fabric.Pattern.prototype */ 
   /**
    * Repeat property of a pattern (one of repeat, repeat-x, repeat-y)
    * @type String
+   * @default
    */
   repeat: 'repeat',
 
   /**
    * Pattern horizontal offset from object's left/top corner
    * @type Number
+   * @default
    */
   offsetX: 0,
 
   /**
    * Pattern vertical offset from object's left/top corner
    * @type Number
+   * @default
    */
   offsetY: 0,
 
   /**
    * Constructor
-   * @param {Object} [options]
+   * @param {Object} [options] Options object
    * @return {fabric.Pattern} thisArg
    */
   initialize: function(options) {
@@ -6277,7 +6319,7 @@ fabric.Pattern = fabric.util.createClass(/** @lends fabric.Pattern.prototype */ 
 
   /**
    * Returns object representation of a pattern
-   * @return {Object}
+   * @return {Object} Object representation of a pattern instance
    */
   toObject: function() {
 
@@ -6303,6 +6345,7 @@ fabric.Pattern = fabric.util.createClass(/** @lends fabric.Pattern.prototype */ 
   /* _TO_SVG_START_ */
   /**
    * Returns SVG representation of a pattern
+   * @param {Object} object
    * @return {String} SVG representation of a pattern
    */
   toSVG: function(object) {
@@ -6334,7 +6377,7 @@ fabric.Pattern = fabric.util.createClass(/** @lends fabric.Pattern.prototype */ 
 
   /**
    * Returns an instance of CanvasPattern
-   * @param ctx
+   * @param {CanvasRenderingContext2D} ctx Context to create pattern
    * @return {CanvasPattern}
    */
   toLive: function(ctx) {
@@ -6353,6 +6396,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
   /**
    * Shadow color
    * @type String
+   * @default
    */
   color: 'rgb(0,0,0)',
 
@@ -6365,24 +6409,27 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
   /**
    * Shadow horizontal offset
    * @type Number
+   * @default
    */
   offsetX: 0,
 
   /**
    * Shadow vertical offset
    * @type Number
+   * @default
    */
   offsetY: 0,
 
   /**
    * Whether the shadow should affect stroke operations
    * @type Boolean
+   * @default
    */
   affectStroke: false,
 
   /**
    * Constructor
-   * @param [options] Options object with any of color, blur, offsetX, offsetX properties
+   * @param {Object} [options] Options object with any of color, blur, offsetX, offsetX properties
    * @return {fabric.Shadow} thisArg
    */
   initialize: function(options) {
@@ -6396,6 +6443,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
   /* _TO_SVG_START_ */
   /**
    * Returns SVG representation of a shadow
+   * @param {Object} object
    * @return {String} SVG representation of a shadow
    */
   toSVG: function(object) {
@@ -6421,7 +6469,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
 
   /**
    * Returns object representation of a shadow
-   * @return {Object}
+   * @return {Object} Object representation of a shadow instance
    */
   toObject: function() {
     return {
@@ -6478,6 +6526,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
     /**
      * Background color of canvas instance
      * @type String
+     * @default
      */
     backgroundColor: '',
 
@@ -6485,12 +6534,14 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
      * Background image of canvas instance
      * Should be set via {@link fabric.StaticCanvas#setBackgroundImage}
      * @type String
+     * @default
      */
     backgroundImage: '',
 
     /**
      * Opacity of the background image of the canvas instance
      * @type Float
+     * @default
      */
     backgroundImageOpacity: 1,
 
@@ -6498,6 +6549,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
      * Indicates whether the background image should be stretched to fit the
      * dimensions of the canvas instance.
      * @type Boolean
+     * @default
      */
     backgroundImageStretch: true,
 
@@ -6505,53 +6557,68 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
      * Overlay image of canvas instance
      * Should be set via {@link fabric.StaticCanvas#setOverlayImage}
      * @type String
+     * @default
      */
     overlayImage: '',
 
     /**
      * Left offset of overlay image (if present)
      * @type Number
+     * @default
      */
     overlayImageLeft: 0,
 
     /**
      * Top offset of overlay image (if present)
      * @type Number
+     * @default
      */
     overlayImageTop: 0,
 
     /**
      * Indicates whether toObject/toDatalessObject should include default values
      * @type Boolean
+     * @default
      */
     includeDefaultValues: true,
 
     /**
      * Indicates whether objects' state should be saved
      * @type Boolean
+     * @default
      */
     stateful: true,
 
     /**
-     * Indicates whether {@link fabric.Canvas.prototype.add} should also re-render canvas.
-     * Disabling this option could give a great performance boost when adding a lot of objects to canvas at once
-     * (followed by a manual rendering after addition)
+     * Indicates whether {@link fabric.Collection.add}, {@link fabric.Collection.insertAt} and {@link fabric.Collection.remove} should also re-render canvas.
+     * Disabling this option could give a great performance boost when adding/removing a lot of objects to/from canvas at once
+     * (followed by a manual rendering after addition/deletion)
      * @type Boolean
+     * @default
      */
-    renderOnAddition: true,
+    renderOnAddRemove: true,
 
     /**
      * Function that determines clipping of entire canvas area
      * Being passed context as first argument. See clipping canvas area in {@link https://github.com/kangax/fabric.js/wiki/FAQ}
      * @type Function
+     * @default
      */
     clipTo: null,
 
     /**
      * Indicates whether object controls (borders/controls) are rendered above overlay image
      * @type Boolean
+     * @default
      */
     controlsAboveOverlay: false,
+    
+    /**
+     * Indicates whether the browser can be scrolled when using a touchscreen and dragging on the canvas
+     * @type Boolean
+     * @default
+     */
+     allowTouchScrolling: false,
 
     /**
      * Callback; invoked right before object is about to be scaled/rotated
@@ -6561,9 +6628,11 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
       /* NOOP */
     },
 
-     /**
-      * @private
-      */
+    /**
+     * @private
+     * @param {HTMLElement | String} el &lt;canvas> element to initialize instance on
+     * @param {Object} [options] Options object
+     */
     _initStatic: function(el, options) {
       this._objects = [];
 
@@ -6694,7 +6763,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
 
     /**
      * @private
-     * @param {Object} [options]
+     * @param {Object} [options] Options object
      */
     _initOptions: function (options) {
       for (var prop in options) {
@@ -6713,6 +6782,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
     /**
      * Creates a bottom canvas
      * @private
+     * @param {HTMLElement} [canvasEl]
      */
     _createLowerCanvas: function (canvasEl) {
       this.lowerCanvasEl = fabric.util.getById(canvasEl) || this._createCanvasElement();
@@ -6765,7 +6835,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
 
     /**
      * Sets dimensions (width, height) of this canvas instance
-     * @param {Object} dimensions
+     * @param {Object} dimensions Object with width/height properties
      * @return {fabric.Canvas} thisArg
      * @chainable
      */
@@ -7097,7 +7167,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
 
     /**
      * Returs dataless JSON representation of canvas
-     * @param {Array} propertiesToInclude
+     * @param {Array} propertiesToInclude Any properties that you might want to additionally include in the output
      * @return {String} json string
      */
     toDatalessJSON: function (propertiesToInclude) {
@@ -7106,7 +7176,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
 
     /**
      * Returns object representation of canvas
-     * @param {Array} propertiesToInclude
+     * @param {Array} propertiesToInclude Any properties that you might want to additionally include in the output
      * @return {Object} object representation of an instance
      */
     toObject: function (propertiesToInclude) {
@@ -7115,7 +7185,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
 
     /**
      * Returns dataless object representation of canvas
-     * @param {Array} propertiesToInclude
+     * @param {Array} propertiesToInclude Any properties that you might want to additionally include in the output
      * @return {Object} object representation of an instance
      */
     toDatalessObject: function (propertiesToInclude) {
@@ -7425,6 +7495,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
     /**
      * @static
      * @type String
+     * @default
      */
     EMPTY_JSON: '{"objects": [], "background": "white"}',
 
@@ -7505,7 +7576,7 @@ fabric.Shadow = fabric.util.createClass(/** @lends fabric.Shadow.prototype */ {
   /**
    * Returs JSON representation of canvas
    * @function
-   * @param {Array} propertiesToInclude
+   * @param {Array} propertiesToInclude Any properties that you might want to additionally include in the output
    * @return {String} json string
    */
   fabric.StaticCanvas.prototype.toJSON = fabric.StaticCanvas.prototype.toObject;
@@ -7644,6 +7715,7 @@ fabric.BaseBrush = fabric.util.createClass(/** @lends fabric.BaseBrush.prototype
       // capture coordinates immediately
       // this allows to draw dots (when movement never occurs)
       this._captureDrawingPath(pointer);
+      this._render();
     },
 
     /**
@@ -7655,7 +7727,7 @@ fabric.BaseBrush = fabric.util.createClass(/** @lends fabric.BaseBrush.prototype
       // redraw curve
       // clear top canvas
       this.canvas.clearContext(this.canvas.contextTop);
-      this._render(this.canvas.contextTop);
+      this._render();
     },
 
     /**
@@ -7722,7 +7794,15 @@ fabric.BaseBrush = fabric.util.createClass(/** @lends fabric.BaseBrush.prototype
 
       var p1 = this._points[0];
       var p2 = this._points[1];
-
+      
+      //if we only have 2 points in the path and they are the same
+      //it means that the user only clicked the canvas without moving the mouse
+      //then we should be drawing a dot. A path isn't drawn between two identical dots
+      //that's why we set them apart a bit
+      if (this._points.length === 2 && p1.x === p2.x && p1.y === p2.y) {
+          p1.x -= 0.5;
+          p2.x += 0.5;
+      }
       ctx.moveTo(p1.x, p1.y);
 
       for (var i = 1, len = this._points.length; i < len; i++) {
@@ -7905,21 +7985,11 @@ fabric.CircleBrush = fabric.util.createClass( fabric.BaseBrush, /** @lends fabri
     this.canvas = canvas;
     this.points = [ ];
   },
-
   /**
-   * Invoked on mouse down
-   */
-  onMouseDown: function() {
-    this.points.length = 0;
-    this.canvas.clearContext(this.canvas.contextTop);
-    this.setShadowStyles();
-  },
-
-  /**
-   * Invoked on mouse move
-   * @param {Object} pointer
-   */
-  onMouseMove: function(pointer) {
+  * Invoked inside on mouse down and mouse move
+  * @param {Object} pointer
+  */
+  drawDot: function(pointer) {
     var point = this.addPoint(pointer);
     var ctx = this.canvas.contextTop;
 
@@ -7931,11 +8001,29 @@ fabric.CircleBrush = fabric.util.createClass( fabric.BaseBrush, /** @lends fabri
   },
 
   /**
+   * Invoked on mouse down
+   */
+  onMouseDown: function(pointer) {
+    this.points.length = 0;
+    this.canvas.clearContext(this.canvas.contextTop);
+    this.setShadowStyles();
+    this.drawDot(pointer);
+  },
+
+  /**
+   * Invoked on mouse move
+   * @param {Object} pointer
+   */
+  onMouseMove: function(pointer) {
+    this.drawDot(pointer);
+  },
+
+  /**
    * Invoked on mouse up
    */
   onMouseUp: function() {
-    var originalRenderOnAddition = this.canvas.renderOnAddition;
-    this.canvas.renderOnAddition = false;
+    var originalRenderOnAddRemove = this.canvas.renderOnAddRemove;
+    this.canvas.renderOnAddRemove = false;
 
     for (var i = 0, len = this.points.length; i < len; i++) {
       var point = this.points[i];
@@ -7961,7 +8049,7 @@ fabric.CircleBrush = fabric.util.createClass( fabric.BaseBrush, /** @lends fabri
 
     this.canvas.clearContext(this.canvas.contextTop);
     this.removeShadowStyles();
-    this.canvas.renderOnAddition = originalRenderOnAddition;
+    this.canvas.renderOnAddRemove = originalRenderOnAddRemove;
     this.canvas.renderAll();
   },
 
@@ -8066,8 +8154,8 @@ fabric.SprayBrush = fabric.util.createClass( fabric.BaseBrush, /** @lends fabric
    * Invoked on mouse up
    */
   onMouseUp: function() {
-    var originalRenderOnAddition = this.canvas.renderOnAddition;
-    this.canvas.renderOnAddition = false;
+    var originalRenderOnAddRemove = this.canvas.renderOnAddRemove;
+    this.canvas.renderOnAddRemove = false;
 
     for (var i = 0, ilen = this.sprayChunks.length; i < ilen; i++) {
       var sprayChunk = this.sprayChunks[i];
@@ -8098,7 +8186,7 @@ fabric.SprayBrush = fabric.util.createClass( fabric.BaseBrush, /** @lends fabric
 
     this.canvas.clearContext(this.canvas.contextTop);
     this.removeShadowStyles();
-    this.canvas.renderOnAddition = originalRenderOnAddition;
+    this.canvas.renderOnAddRemove = originalRenderOnAddRemove;
     this.canvas.renderAll();
   },
 
@@ -8362,6 +8450,13 @@ fabric.PatternBrush = fabric.util.createClass(fabric.PencilBrush, /** @lends fab
      * @default
      */
     targetFindTolerance:    0,
+
+    /**
+     * When true, target detection is skipped when hovering over canvas. This can be used to improve performance.
+     * @type Boolean
+     * @default
+     */
+    skipTargetFind: false,
 
     /**
      * @private
@@ -8950,6 +9045,7 @@ fabric.PatternBrush = fabric.util.createClass(fabric.PencilBrush, /** @lends fab
      * @param {Boolean} skipGroup when true, group is skipped and only objects are traversed through
      */
     findTarget: function (e, skipGroup) {
+      if (this.skipTargetFind) return;
 
       var target,
           pointer = this.getPointer(e);
@@ -9105,7 +9201,7 @@ fabric.PatternBrush = fabric.util.createClass(fabric.PencilBrush, /** @lends fab
     /**
      * Sets given object as the only active object on canvas
      * @param {fabric.Object} object Object to set as an active one
-     * @param {Event} e
+     * @param {Event} [e] Event (passed along when firing "object:selected")
      * @return {fabric.Canvas} thisArg
      * @chainable
      */
@@ -9363,7 +9459,7 @@ fabric.PatternBrush = fabric.util.createClass(fabric.PencilBrush, /** @lends fab
      * @param {Event} e Event object fired on mousemove
      */
     _onMouseMove: function (e) {
-      e.preventDefault && e.preventDefault();
+      !this.allowTouchScrolling && e.preventDefault && e.preventDefault();
       this.__onMouseMove(e);
     },
 
@@ -9437,9 +9533,6 @@ fabric.PatternBrush = fabric.util.createClass(fabric.PencilBrush, /** @lends fab
       this.renderAll();
 
       this._setCursorFromEvent(e, target);
-
-      // fix for FF
-      this._setCursor('');
 
       var _this = this;
       setTimeout(function () {
@@ -9965,15 +10058,15 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
       callback && callback();
     }
 
-    var renderOnAddition = this.renderOnAddition;
-    this.renderOnAddition = false;
+    var renderOnAddRemove = this.renderOnAddRemove;
+    this.renderOnAddRemove = false;
 
     fabric.util.enlivenObjects(objects, function(enlivenedObjects) {
       enlivenedObjects.forEach(function(obj, index) {
         _this.insertAt(obj, index, true);
       });
 
-      _this.renderOnAddition = renderOnAddition;
+      _this.renderOnAddRemove = renderOnAddRemove;
       callback && callback();
     });
   },
@@ -10262,6 +10355,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
     /**
      * Shadow object representing shadow of this shape
      * @type fabric.Shadow
+     * @default
      */
     shadow:                   null,
 
@@ -10463,7 +10557,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
 
     /**
      * Sets object's properties from options
-     * @param {Object} [options]
+     * @param {Object} [options] Options object
      */
     setOptions: function(options) {
       for (var prop in options) {
@@ -10743,7 +10837,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
 
     /**
      * Sets sourcePath of an object
-     * @param {String} value
+     * @param {String} value Value to set sourcePath to
      * @return {fabric.Object} thisArg
      * @chainable
      */
@@ -11172,6 +11266,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
   /**
    * Alias for {@link fabric.Object.prototype.setAngle}
    * @alias rotate -> setAngle
+   * @memberof fabric.Object
    */
   fabric.Object.prototype.rotate = fabric.Object.prototype.setAngle;
 
@@ -11180,6 +11275,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
   /**
    * Defines the number of fraction digits when serializing object values. You can use it to increase/decrease precision of such values like left, top, scaleX, scaleY, etc.
    * @static
+   * @memberof fabric.Object
    * @constant
    * @type Number
    */
@@ -11187,6 +11283,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
 
   /**
    * @static
+   * @memberof fabric.Object
    * @type Number
    */
   fabric.Object.__uid = 0;
@@ -12117,7 +12214,7 @@ fabric.util.object.extend(fabric.Object.prototype, /** @lends fabric.Object.prot
 
       var padding = this.padding,
           padding2 = padding * 2,
-          strokeWidth = this.strokeWidth > 1 ? this.strokeWidth : 0;
+          strokeWidth = ~~(this.strokeWidth / 2) * 2; // Round down to even number
 
       ctx.save();
 
@@ -12135,10 +12232,10 @@ fabric.util.object.extend(fabric.Object.prototype, /** @lends fabric.Object.prot
           h = this.getHeight();
 
       ctx.strokeRect(
-        ~~(-(w / 2) - padding - strokeWidth / 2 * this.scaleX) + 0.5, // offset needed to make lines look sharper
-        ~~(-(h / 2) - padding - strokeWidth / 2 * this.scaleY) + 0.5,
-        ~~(w + padding2 + strokeWidth * this.scaleX),
-        ~~(h + padding2 + strokeWidth * this.scaleY)
+        ~~(-(w / 2) - padding - strokeWidth / 2 * this.scaleX) - 0.5, // offset needed to make lines look sharper
+        ~~(-(h / 2) - padding - strokeWidth / 2 * this.scaleY) - 0.5,
+        ~~(w + padding2 + strokeWidth * this.scaleX) + 1, // double offset needed to make lines look sharper
+        ~~(h + padding2 + strokeWidth * this.scaleY) + 1
       );
 
       if (this.hasRotatingPoint && !this.get('lockRotation') && this.hasControls) {
@@ -12173,7 +12270,7 @@ fabric.util.object.extend(fabric.Object.prototype, /** @lends fabric.Object.prot
 
       var size = this.cornerSize,
           size2 = size / 2,
-          strokeWidth2 = this.strokeWidth > 1 ? (this.strokeWidth / 2) : 0,
+          strokeWidth2 = ~~(this.strokeWidth / 2), // half strokeWidth rounded down
           left = -(this.width / 2),
           top = -(this.height / 2),
           _left,
@@ -12282,6 +12379,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
   /**
    * Animation duration (in ms) for fx* methods
    * @type Number
+   * @default
    */
   FX_DURATION: 500,
 
@@ -12388,7 +12486,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
   }
 });
 
-fabric.util.object.extend(fabric.Object.prototype, {
+fabric.util.object.extend(fabric.Object.prototype, /** @lends fabric.Object.prototype */ {
   /**
    * Animates object's properties
    * @param {String|Object} property to animate (if string) or properties to animate (if object)
@@ -12427,10 +12525,10 @@ fabric.util.object.extend(fabric.Object.prototype, {
 
   /**
    * @private
-   * @param {String} property
-   * @param {String} to
-   * @param {Object} [options]
-   * @param {Boolean} [skipCallbacks]
+   * @param {String} property Property to animate
+   * @param {String} to Value to animate to
+   * @param {Object} [options] Options object
+   * @param {Boolean} [skipCallbacks] When true, callbacks like onchange and oncomplete are not invoked
    */
   _animate: function(property, to, options, skipCallbacks) {
     var obj = this, propPair;
@@ -12469,7 +12567,9 @@ fabric.util.object.extend(fabric.Object.prototype, {
       byValue: options.by,
       easing: options.easing,
       duration: options.duration,
-      abort: options.abort,
+      abort: options.abort && function() {
+        return options.abort.call(obj);
+      },
       onChange: function(value) {
         if (propPair) {
           obj[propPair[0]][propPair[1]] = value;
@@ -12674,6 +12774,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * List of attribute names to account for when parsing SVG element (used by {@link fabric.Line.fromElement})
    * @static
+   * @memberOf fabric.Line
    * @see http://www.w3.org/TR/SVG/shapes.html#LineElement
    */
   fabric.Line.ATTRIBUTE_NAMES = fabric.SHARED_ATTRIBUTES.concat('x1 y1 x2 y2'.split(' '));
@@ -12681,6 +12782,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns fabric.Line instance from an SVG element
    * @static
+   * @memberOf fabric.Line
    * @param {SVGElement} element Element to parse
    * @param {Object} [options] Options object
    * @return {fabric.Line} instance of fabric.Line
@@ -12700,6 +12802,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns fabric.Line instance from an object representation
    * @static
+   * @memberOf fabric.Line
    * @param {Object} object Object to create an instance from
    * @return {fabric.Line} instance of fabric.Line
    */
@@ -12838,6 +12941,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * List of attribute names to account for when parsing SVG element (used by {@link fabric.Circle.fromElement})
    * @static
+   * @memberOf fabric.Circle
    * @see: http://www.w3.org/TR/SVG/shapes.html#CircleElement
    */
   fabric.Circle.ATTRIBUTE_NAMES = fabric.SHARED_ATTRIBUTES.concat('cx cy r'.split(' '));
@@ -12845,6 +12949,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns {@link fabric.Circle} instance from an SVG element
    * @static
+   * @memberOf fabric.Circle
    * @param {SVGElement} element Element to parse
    * @param {Object} [options] Options object
    * @throws {Error} If value of `r` attribute is missing or invalid
@@ -12881,6 +12986,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns {@link fabric.Circle} instance from an object representation
    * @static
+   * @memberOf fabric.Circle
    * @param {Object} object Object to create an instance from
    * @return {Object} Instance of fabric.Circle
    */
@@ -13004,6 +13110,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns fabric.Triangle instance from an object representation
    * @static
+   * @memberOf fabric.Triangle
    * @param object {Object} object to create an instance from
    * @return {Object} instance of Canvas.Triangle
    */
@@ -13149,6 +13256,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * List of attribute names to account for when parsing SVG element (used by {@link fabric.Ellipse.fromElement})
    * @static
+   * @memberOf fabric.Ellipse
    * @see http://www.w3.org/TR/SVG/shapes.html#EllipseElement
    */
   fabric.Ellipse.ATTRIBUTE_NAMES = fabric.SHARED_ATTRIBUTES.concat('cx cy rx ry'.split(' '));
@@ -13156,6 +13264,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns {@link fabric.Ellipse} instance from an SVG element
    * @static
+   * @memberOf fabric.Ellipse
    * @param {SVGElement} element Element to parse
    * @param {Object} [options] Options object
    * @return {fabric.Ellipse}
@@ -13186,6 +13295,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns {@link fabric.Ellipse} instance from an object representation
    * @static
+   * @memberOf fabric.Ellipse
    * @param {Object} object Object to create an instance from
    * @return {fabric.Ellipse}
    */
@@ -13408,6 +13518,8 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * List of attribute names to account for when parsing SVG element (used by `fabric.Rect.fromElement`)
    * @static
+   * @memberOf fabric.Rect
+   * @see: http://www.w3.org/TR/SVG/shapes.html#RectElement
    */
   fabric.Rect.ATTRIBUTE_NAMES = fabric.SHARED_ATTRIBUTES.concat('x y rx ry width height'.split(' '));
 
@@ -13423,6 +13535,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns {@link fabric.Rect} instance from an SVG element
    * @static
+   * @memberOf fabric.Rect
    * @param {SVGElement} element Element to parse
    * @param {Object} [options] Options object
    * @return {fabric.Rect} Instance of fabric.Rect
@@ -13445,6 +13558,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns {@link fabric.Rect} instance from an object representation
    * @static
+   * @memberOf fabric.Rect
    * @param object {Object} object to create an instance from
    * @return {Object} instance of fabric.Rect
    */
@@ -13583,6 +13697,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * List of attribute names to account for when parsing SVG element (used by {@link fabric.Polyline.fromElement})
    * @static
+   * @memberOf fabric.Polyline
    * @see: http://www.w3.org/TR/SVG/shapes.html#PolylineElement
    */
   fabric.Polyline.ATTRIBUTE_NAMES = fabric.SHARED_ATTRIBUTES.concat();
@@ -13590,6 +13705,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns fabric.Polyline instance from an SVG element
    * @static
+   * @memberOf fabric.Polyline
    * @param {SVGElement} element Element to parse
    * @param {Object} [options] Options object
    * @return {fabric.Polyline} Instance of fabric.Polyline
@@ -13621,6 +13737,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns fabric.Polyline instance from an object representation
    * @static
+   * @memberOf fabric.Polyline
    * @param object {Object} object Object to create an instance from
    * @return {fabric.Polyline} Instance of fabric.Polyline
    */
@@ -13789,6 +13906,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * List of attribute names to account for when parsing SVG element (used by `fabric.Polygon.fromElement`)
    * @static
+   * @memberOf fabric.Polygon
    * @see: http://www.w3.org/TR/SVG/shapes.html#PolygonElement
    */
   fabric.Polygon.ATTRIBUTE_NAMES = fabric.SHARED_ATTRIBUTES.concat();
@@ -13796,6 +13914,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns {@link fabric.Polygon} instance from an SVG element
    * @static
+   * @memberOf fabric.Polygon
    * @param {SVGElement} element Element to parse
    * @param {Object} [options] Options object
    * @return {fabric.Polygon} Instance of fabric.Polygon
@@ -13827,6 +13946,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns fabric.Polygon instance from an object representation
    * @static
+   * @memberOf fabric.Polygon
    * @param object {Object} object Object to create an instance from
    * @return {fabric.Polygon} Instance of fabric.Polygon
    */
@@ -14511,6 +14631,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Creates an instance of fabric.Path from an object
    * @static
+   * @memberOf fabric.Path
    * @param {Object} object
    * @param {Function} callback Callback to invoke when an fabric.Path instance is created
    */
@@ -14537,6 +14658,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * List of attribute names to account for when parsing SVG element (used by `fabric.Path.fromElement`)
    * @static
+   * @memberOf fabric.Path
    * @see http://www.w3.org/TR/SVG/paths.html#PathElement
    */
   fabric.Path.ATTRIBUTE_NAMES = fabric.SHARED_ATTRIBUTES.concat(['d']);
@@ -14544,6 +14666,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Creates an instance of fabric.Path from an SVG <path> element
    * @static
+   * @memberOf fabric.Path
    * @param {SVGElement} element to parse
    * @param {Function} callback Callback to invoke when an fabric.Path instance is created
    * @param {Object} [options] Options object
@@ -14557,7 +14680,9 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Indicates that instances of this type are async
    * @static
+   * @memberOf fabric.Path
    * @type Boolean
+   * @default
    */
   fabric.Path.async = true;
 
@@ -14774,6 +14899,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Creates fabric.PathGroup instance from an object representation
    * @static
+   * @memberOf fabric.PathGroup
    * @param {Object} object
    * @param {Function} callback Callback to invoke when an fabric.PathGroup instance is created
    */
@@ -14800,7 +14926,9 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Indicates that instances of this type are async
    * @static
+   * @memberOf fabric.PathGroup
    * @type Boolean
+   * @default
    */
   fabric.PathGroup.async = true;
 
@@ -14969,9 +15097,8 @@ fabric.util.object.extend(fabric.Object.prototype, {
     },
 
     /**
-     * @param delegatedProperties
-     * @type Object
      * Properties that are delegated to group objects when reading/writing
+     * @param {Object} delegatedProperties
      */
     delegatedProperties: {
       fill:             true,
@@ -15242,6 +15369,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Returns {@link fabric.Group} instance from an object representation
    * @static
+   * @memberOf fabric.Group
    * @param {Object} object Object to create a group from
    * @param {Object} [options] Options object
    * @return {fabric.Group} An instance of fabric.Group
@@ -15256,7 +15384,9 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Indicates that instances of this type are async
    * @static
+   * @memberOf fabric.Group
    * @type Boolean
+   * @default
    */
   fabric.Group.async = true;
 
@@ -15301,12 +15431,11 @@ fabric.util.object.extend(fabric.Object.prototype, {
     initialize: function(element, options) {
       options || (options = { });
 
+      this.filters = [ ];
+
       this.callSuper('initialize', options);
       this._initElement(element);
-      this._originalImage = this.getElement();
       this._initConfig(options);
-
-      this.filters = [ ];
 
       if (options.filters) {
         this.filters = options.filters;
@@ -15323,20 +15452,29 @@ fabric.util.object.extend(fabric.Object.prototype, {
     },
 
     /**
-     * Sets image element for this instance to a specified one
+     * Sets image element for this instance to a specified one.
+     * If filters defined they are applied to new image.
+     * You might need to call `canvas.renderAll` and `object.setCoords` after replacing, to render new image and update controls area.
      * @param {HTMLImageElement} element
+     * @param {Function} [callback] Callback is invoked when all filters have been applied and new image is generated
      * @return {fabric.Image} thisArg
      * @chainable
      */
-    setElement: function(element) {
+    setElement: function(element, callback) {
       this._element = element;
+      this._originalElement = element;
       this._initConfig();
+
+      if (this.filters.length !== 0) {
+        this.applyFilters(callback);
+      }
+
       return this;
     },
 
     /**
      * Returns original size of an image
-     * @return {Object} object with "width" and "height" properties
+     * @return {Object} Object with "width" and "height" properties
      */
     getOriginalSize: function() {
       var element = this.getElement();
@@ -15438,13 +15576,15 @@ fabric.util.object.extend(fabric.Object.prototype, {
 
     /**
      * Returns object representation of an instance
-     * @param {Array} propertiesToInclude
-     * @return {Object} propertiesToInclude Object representation of an instance
+     * @param {Array} propertiesToInclude Any properties that you might want to additionally include in the output
+     * @return {Object} Object representation of an instance
      */
     toObject: function(propertiesToInclude) {
       return extend(this.callSuper('toObject', propertiesToInclude), {
-        src: this._originalImage.src || this._originalImage._src,
-        filters: this.filters.concat()
+        src: this._originalElement.src || this._originalElement._src,
+        filters: this.filters.map(function(filterObj) {
+          return filterObj && filterObj.toObject();
+        })
       });
     },
 
@@ -15507,7 +15647,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
     /**
      * Returns a clone of an instance
      * @param {Function} callback Callback is invoked with a clone as a first argument
-     * @param {Array} propertiesToInclude
+     * @param {Array} propertiesToInclude Any properties that you might want to additionally include in the output
      */
     clone: function(callback, propertiesToInclude) {
       this.constructor.fromObject(this.toObject(propertiesToInclude), callback);
@@ -15523,12 +15663,12 @@ fabric.util.object.extend(fabric.Object.prototype, {
     applyFilters: function(callback) {
 
       if (this.filters.length === 0) {
-        this.setElement(this._originalImage);
+        this._element = this._originalElement;
         callback && callback();
         return;
       }
 
-      var imgEl = this._originalImage,
+      var imgEl = this._originalElement,
           canvasEl = fabric.util.createCanvasElement(),
           replacement = fabric.util.createImage(),
           _this = this;
@@ -15548,7 +15688,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
       replacement.height = imgEl.height;
 
       if (fabric.isLikelyNode) {
-        replacement.src = canvasEl.toBuffer();
+        replacement.src = canvasEl.toBuffer(undefined, fabric.Image.pngCompression);
 
         // onload doesn't fire in some node versions, so we invoke callback manually
         _this._element = replacement;
@@ -15568,7 +15708,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
 
     /**
      * @private
-     * @param ctx
+     * @param {CanvasRenderingContext2D} ctx Context to render on
      */
     _render: function(ctx) {
       ctx.drawImage(
@@ -15594,7 +15734,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
      * The Image class's initialization method. This method is automatically
      * called by the constructor.
      * @private
-     * @param {HTMLImageElement|String} el The element representing the image
+     * @param {HTMLImageElement|String} element The element representing the image
      */
     _initElement: function(element) {
       this.setElement(fabric.util.getById(element));
@@ -15614,12 +15754,16 @@ fabric.util.object.extend(fabric.Object.prototype, {
     /**
      * @private
      * @param {Object} object Object with filters property
+     * @param {Function} callback Callback to invoke when all fabric.Image.filters instances are created
      */
-    _initFilters: function(object) {
+    _initFilters: function(object, callback) {
       if (object.filters && object.filters.length) {
-        this.filters = object.filters.map(function(filterObj) {
-          return filterObj && fabric.Image.filters[filterObj.type].fromObject(filterObj);
-        });
+        fabric.util.enlivenObjects(object.filters, function(enlivenedObjects) {
+          callback && callback(enlivenedObjects);
+        }, 'fabric.Image.filters');
+      }
+      else {
+        callback && callback();
       }
     },
 
@@ -15650,6 +15794,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
    * Default CSS class name for canvas
    * @static
    * @type String
+   * @default
    */
   fabric.Image.CSS_CANVAS = "canvas-img";
 
@@ -15662,28 +15807,22 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * Creates an instance of fabric.Image from its object representation
    * @static
-   * @param {Object} object
+   * @param {Object} object Object to create an instance from
    * @param {Function} [callback] Callback to invoke when an image instance is created
    */
   fabric.Image.fromObject = function(object, callback) {
     var img = fabric.document.createElement('img'),
         src = object.src;
 
-    if (object.width) {
-      img.width = object.width;
-    }
-
-    if (object.height) {
-      img.height = object.height;
-    }
-
     /** @ignore */
     img.onload = function() {
-      fabric.Image.prototype._initFilters.call(object, object);
+      fabric.Image.prototype._initFilters.call(object, object, function(filters) {
+        object.filters = filters || [ ];
 
-      var instance = new fabric.Image(img, object);
-      callback && callback(instance);
-      img = img.onload = img.onerror = null;
+        var instance = new fabric.Image(img, object);
+        callback && callback(instance);
+        img = img.onload = img.onerror = null;
+      });
     };
 
     /** @ignore */
@@ -15713,7 +15852,7 @@ fabric.util.object.extend(fabric.Object.prototype, {
   /**
    * List of attribute names to account for when parsing SVG element (used by {@link fabric.Image.fromElement})
    * @static
-   * @see http://www.w3.org/TR/SVG/struct.html#ImageElement
+   * @see {@link http://www.w3.org/TR/SVG/struct.html#ImageElement}
    */
   fabric.Image.ATTRIBUTE_NAMES = fabric.SHARED_ATTRIBUTES.concat('x y width height xlink:href'.split(' '));
 
@@ -15737,8 +15876,17 @@ fabric.util.object.extend(fabric.Object.prototype, {
    * Indicates that instances of this type are async
    * @static
    * @type Boolean
+   * @default
    */
   fabric.Image.async = true;
+
+  /**
+   * Indicates compression level used when generating PNG under Node (in applyFilters). Any of 0-9
+   * @static
+   * @type Number
+   * @default
+   */
+  fabric.Image.pngCompression = 1;
 
 })(typeof exports !== 'undefined' ? exports : this);
 
@@ -15840,855 +15988,1012 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, /** @lends fabric.Stati
  */
 fabric.Image.filters = fabric.Image.filters || { };
 
+
 /**
- * Brightness filter class
- * @class fabric.Image.filters.Brightness
+ * Root filter class from which all filter classes inherit from
+ * @class fabric.Image.filters.BaseFilter
  * @memberOf fabric.Image.filters
  */
-fabric.Image.filters.Brightness = fabric.util.createClass(/** @lends fabric.Image.filters.Brightness.prototype */ {
+fabric.Image.filters.BaseFilter = fabric.util.createClass(/** @lends fabric.Image.filters.BaseFilter.prototype */ {
 
   /**
    * Filter type
    * @param {String} type
    * @default
    */
-  type: 'Brightness',
+  type: 'BaseFilter',
 
   /**
-   * Constructor
-   * @memberOf fabric.Image.filters.Brightness.prototype
-   * @param {Object} [options] Options object
+   * Returns object representation of an instance
+   * @return {Object} Object representation of an instance
    */
-  initialize: function(options) {
-    options = options || { };
-    this.brightness = options.brightness || 100;
+  toObject: function() {
+    return { type: this.type };
   },
 
   /**
-   * Applies filter to canvas element
-   * @param {Object} canvasEl Canvas element to apply filter to
-   */
-  applyTo: function(canvasEl) {
-    var context = canvasEl.getContext('2d'),
-        imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
-        data = imageData.data,
-        brightness = this.brightness;
-
-    for (var i = 0, len = data.length; i < len; i += 4) {
-      data[i] += brightness;
-      data[i + 1] += brightness;
-      data[i + 2] += brightness;
-    }
-
-    context.putImageData(imageData, 0, 0);
-  },
-
-  /**
-   * Returns json representation of filter
-   * @return {String} json representation of filter
+   * Returns a JSON representation of an instance
+   * @return {Object} JSON
    */
   toJSON: function() {
-    return {
-      type: this.type,
-      brightness: this.brightness
-    };
+    // delegate, not alias
+    return this.toObject();
   }
 });
 
-/**
- * Returns filter instance from an object representation
- * @static
- * @param {Object} object Object to create an instance from
- * @return {fabric.Image.filters.Brightness} Instance of fabric.Image.filters.Brightness
- */
-fabric.Image.filters.Brightness.fromObject = function(object) {
-  return new fabric.Image.filters.Brightness(object);
-};
 
+(function(global) {
 
-/**
- * @namespace fabric.Image.filters
- * @memberOf fabric.Image
- */
-fabric.Image.filters = fabric.Image.filters || { };
+  "use strict";
 
-/**
- * Adapted from <a href="http://www.html5rocks.com/en/tutorials/canvas/imagefilters/">html5rocks article</a>
- * @class fabric.Image.filters.Convolute
- * @memberOf fabric.Image.filters
- */
-fabric.Image.filters.Convolute = fabric.util.createClass(/** @lends fabric.Image.filters.Convolute.prototype */ {
+  var fabric  = global.fabric || (global.fabric = { }),
+      extend = fabric.util.object.extend;
 
   /**
-   * Filter type
-   * @param {String} type
+   * Brightness filter class
+   * @class fabric.Image.filters.Brightness
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
+   */
+  fabric.Image.filters.Brightness = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.Brightness.prototype */ {
+
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'Brightness',
+
+    /**
+     * Constructor
+     * @memberOf fabric.Image.filters.Brightness.prototype
+     * @param {Object} [options] Options object
+     */
+    initialize: function(options) {
+      options = options || { };
+      this.brightness = options.brightness || 100;
+    },
+
+    /**
+     * Applies filter to canvas element
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      var context = canvasEl.getContext('2d'),
+          imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
+          data = imageData.data,
+          brightness = this.brightness;
+
+      for (var i = 0, len = data.length; i < len; i += 4) {
+        data[i] += brightness;
+        data[i + 1] += brightness;
+        data[i + 2] += brightness;
+      }
+
+      context.putImageData(imageData, 0, 0);
+    },
+
+    /**
+     * Returns object representation of an instance
+     * @return {Object} Object representation of an instance
+     */
+    toObject: function() {
+      return extend(this.callSuper('toObject'), {
+        brightness: this.brightness
+      });
+    }
+  });
+
+  /**
+   * Returns filter instance from an object representation
+   * @static
+   * @param {Object} object Object to create an instance from
+   * @return {fabric.Image.filters.Brightness} Instance of fabric.Image.filters.Brightness
+   */
+  fabric.Image.filters.Brightness.fromObject = function(object) {
+    return new fabric.Image.filters.Brightness(object);
+  };
+
+})(typeof exports !== 'undefined' ? exports : this);
+
+
+(function(global) {
+
+  "use strict";
+
+  var fabric  = global.fabric || (global.fabric = { }),
+      extend = fabric.util.object.extend;
+
+  /**
+   * Adapted from <a href="http://www.html5rocks.com/en/tutorials/canvas/imagefilters/">html5rocks article</a>
+   * @class fabric.Image.filters.Convolute
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
+   */
+  fabric.Image.filters.Convolute = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.Convolute.prototype */ {
+
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'Convolute',
+
+    /**
+     * Constructor
+     * @memberOf fabric.Image.filters.Convolute.prototype
+     * @param {Object} [options] Options object
+     */
+    initialize: function(options) {
+      options = options || { };
+
+      this.opaque = options.opaque;
+      this.matrix = options.matrix || [ 0, 0, 0,
+        0, 1, 0,
+        0, 0, 0 ];
+
+      var canvasEl = fabric.util.createCanvasElement();
+      this.tmpCtx = canvasEl.getContext('2d');
+    },
+
+    /**
+     * @private
+     */
+    _createImageData: function(w, h) {
+      return this.tmpCtx.createImageData(w, h);
+    },
+
+    /**
+     * Applies filter to canvas element
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      var weights = this.matrix;
+      var context = canvasEl.getContext('2d');
+      var pixels = context.getImageData(0, 0, canvasEl.width, canvasEl.height);
+
+      var side = Math.round(Math.sqrt(weights.length));
+      var halfSide = Math.floor(side/2);
+      var src = pixels.data;
+      var sw = pixels.width;
+      var sh = pixels.height;
+
+      // pad output by the convolution matrix
+      var w = sw;
+      var h = sh;
+      var output = this._createImageData(w, h);
+
+      var dst = output.data;
+
+      // go through the destination image pixels
+      var alphaFac = this.opaque ? 1 : 0;
+      for (var y=0; y<h; y++) {
+        for (var x=0; x<w; x++) {
+          var sy = y;
+          var sx = x;
+          var dstOff = (y*w+x)*4;
+          // calculate the weighed sum of the source image pixels that
+          // fall under the convolution matrix
+          var r=0, g=0, b=0, a=0;
+          for (var cy=0; cy<side; cy++) {
+            for (var cx=0; cx<side; cx++) {
+              var scy = sy + cy - halfSide;
+              var scx = sx + cx - halfSide;
+              if (scy >= 0 && scy < sh && scx >= 0 && scx < sw) {
+                var srcOff = (scy*sw+scx)*4;
+                var wt = weights[cy*side+cx];
+                r += src[srcOff] * wt;
+                g += src[srcOff+1] * wt;
+                b += src[srcOff+2] * wt;
+                a += src[srcOff+3] * wt;
+              }
+            }
+          }
+          dst[dstOff] = r;
+          dst[dstOff+1] = g;
+          dst[dstOff+2] = b;
+          dst[dstOff+3] = a + alphaFac*(255-a);
+        }
+      }
+
+      context.putImageData(output, 0, 0);
+    },
+
+    /**
+     * Returns object representation of an instance
+     * @return {Object} Object representation of an instance
+     */
+    toObject: function() {
+      return extend(this.callSuper('toObject'), {
+        opaque: this.opaque,
+        matrix: this.matrix
+      });
+    }
+  });
+
+  /**
+   * Returns filter instance from an object representation
+   * @static
+   * @param {Object} object Object to create an instance from
+   * @return {fabric.Image.filters.Convolute} Instance of fabric.Image.filters.Convolute
+   */
+  fabric.Image.filters.Convolute.fromObject = function(object) {
+      return new fabric.Image.filters.Convolute(object);
+  };
+
+})(typeof exports !== 'undefined' ? exports : this);
+
+
+(function(global) {
+
+  "use strict";
+
+  var fabric  = global.fabric || (global.fabric = { }),
+      extend = fabric.util.object.extend;
+
+  /**
+   * GradientTransparency filter class
+   * @class fabric.Image.filters.GradientTransparency
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
+   */
+  fabric.Image.filters.GradientTransparency = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.GradientTransparency.prototype */ {
+
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'GradientTransparency',
+
+    /**
+     * Constructor
+     * @memberOf fabric.Image.filters.GradientTransparency
+     * @param {Object} [options] Options object
+     */
+    initialize: function(options) {
+      options = options || { };
+      this.threshold = options.threshold || 100;
+    },
+
+    /**
+     * Applies filter to canvas element
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      var context = canvasEl.getContext('2d'),
+          imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
+          data = imageData.data,
+          threshold = this.threshold,
+          total = data.length;
+
+      for (var i = 0, len = data.length; i < len; i += 4) {
+        data[i + 3] = threshold + 255 * (total - i) / total;
+      }
+
+      context.putImageData(imageData, 0, 0);
+    },
+
+    /**
+     * Returns object representation of an instance
+     * @return {Object} Object representation of an instance
+     */
+    toObject: function() {
+      return extend(this.callSuper('toObject'), {
+        threshold: this.threshold
+      });
+    }
+  });
+
+  /**
+   * Returns filter instance from an object representation
+   * @static
+   * @param {Object} object Object to create an instance from
+   * @return {fabric.Image.filters.GradientTransparency} Instance of fabric.Image.filters.GradientTransparency
+   */
+  fabric.Image.filters.GradientTransparency.fromObject = function(object) {
+    return new fabric.Image.filters.GradientTransparency(object);
+  };
+
+})(typeof exports !== 'undefined' ? exports : this);
+
+
+(function(global) {
+
+  "use strict";
+
+  var fabric  = global.fabric || (global.fabric = { });
+
+  /**
+   * Grayscale image filter class
+   * @class fabric.Image.filters.Grayscale
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
+   */
+  fabric.Image.filters.Grayscale = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.Grayscale.prototype */ {
+
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'Grayscale',
+
+    /**
+     * Applies filter to canvas element
+     * @memberOf fabric.Image.filters.Grayscale.prototype
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      var context = canvasEl.getContext('2d'),
+          imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
+          data = imageData.data,
+          len = imageData.width * imageData.height * 4,
+          index = 0,
+          average;
+
+      while (index < len) {
+        average = (data[index] + data[index + 1] + data[index + 2]) / 3;
+        data[index]     = average;
+        data[index + 1] = average;
+        data[index + 2] = average;
+        index += 4;
+      }
+
+      context.putImageData(imageData, 0, 0);
+    }
+  });
+
+  /**
+   * Returns filter instance from an object representation
+   * @static
+   * @return {fabric.Image.filters.Grayscale} Instance of fabric.Image.filters.Grayscale
+   */
+  fabric.Image.filters.Grayscale.fromObject = function() {
+    return new fabric.Image.filters.Grayscale();
+  };
+
+})(typeof exports !== 'undefined' ? exports : this);
+
+
+(function(global) {
+
+  "use strict";
+
+  var fabric  = global.fabric || (global.fabric = { });
+
+  /**
+   * Invert filter class
+   * @class fabric.Image.filters.Invert
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
+   */
+  fabric.Image.filters.Invert = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.Invert.prototype */ {
+
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'Invert',
+
+    /**
+     * Applies filter to canvas element
+     * @memberOf fabric.Image.filters.Invert.prototype
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      var context = canvasEl.getContext('2d'),
+          imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
+          data = imageData.data,
+          iLen = data.length, i;
+
+      for (i = 0; i < iLen; i+=4) {
+        data[i] = 255 - data[i];
+        data[i + 1] = 255 - data[i + 1];
+        data[i + 2] = 255 - data[i + 2];
+      }
+
+      context.putImageData(imageData, 0, 0);
+    }
+  });
+
+  /**
+   * Returns filter instance from an object representation
+   * @static
+   * @return {fabric.Image.filters.Invert} Instance of fabric.Image.filters.Invert
+   */
+  fabric.Image.filters.Invert.fromObject = function() {
+    return new fabric.Image.filters.Invert();
+  };
+
+})(typeof exports !== 'undefined' ? exports : this);
+
+
+(function(global) {
+
+  "use strict";
+
+  var fabric  = global.fabric || (global.fabric = { }),
+      extend = fabric.util.object.extend;
+
+  /**
+   * Mask filter class
+   * @class fabric.Image.filters.Mask
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
+   */
+  fabric.Image.filters.Mask = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.Mask.prototype */ {
+
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'Mask',
+
+    /**
+     * Constructor
+     * @memberOf fabric.Image.filters.Mask.prototype
+     * @param {Object} [options] Options object
+     */
+    initialize: function(options) {
+      options = options || { };
+
+      this.mask = options.mask;
+      this.channel = [ 0, 1, 2, 3 ].indexOf(options.channel) > -1 ? options.channel : 0;
+    },
+
+    /**
+     * Applies filter to canvas element
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      if (!this.mask) return;
+
+      var context = canvasEl.getContext('2d'),
+          imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
+          data = imageData.data,
+          maskEl = this.mask.getElement(),
+          maskCanvasEl = fabric.util.createCanvasElement(),
+          channel = this.channel,
+          i,
+          iLen = imageData.width * imageData.height * 4;
+
+      maskCanvasEl.width = maskEl.width;
+      maskCanvasEl.height = maskEl.height;
+
+      maskCanvasEl.getContext('2d').drawImage(maskEl, 0, 0, maskEl.width, maskEl.height);
+
+      var maskImageData = maskCanvasEl.getContext('2d').getImageData(0, 0, maskEl.width, maskEl.height),
+          maskData = maskImageData.data;
+
+      for (i = 0; i < iLen; i += 4) {
+        data[i + 3] = maskData[i + channel];
+      }
+
+      context.putImageData(imageData, 0, 0);
+    },
+
+    /**
+     * Returns object representation of an instance
+     * @return {Object} Object representation of an instance
+     */
+    toObject: function() {
+      return extend(this.callSuper('toObject'), {
+        mask: this.mask.toObject(),
+        channel: this.channel
+      });
+    }
+  });
+
+  /**
+   * Returns filter instance from an object representation
+   * @static
+   * @param {Object} object Object to create an instance from
+   * @param {Function} [callback] Callback to invoke when a mask filter instance is created
+   */
+  fabric.Image.filters.Mask.fromObject = function(object, callback) {
+    var img = fabric.document.createElement('img'),
+        src = object.mask.src;
+
+    /** @ignore */
+    img.onload = function() {
+      object.mask = new fabric.Image(img, object.mask);
+
+      callback && callback(new fabric.Image.filters.Mask(object));
+      img = img.onload = img.onerror = null;
+    };
+
+    /** @ignore */
+    img.onerror = function() {
+      fabric.log('Error loading ' + img.src);
+      callback && callback(null, true);
+      img = img.onload = img.onerror = null;
+    };
+
+    img.src = src;
+  };
+
+  /**
+   * Indicates that instances of this type are async
+   * @static
+   * @type Boolean
    * @default
    */
-  type: 'Convolute',
+  fabric.Image.filters.Mask.async = true;
+
+})(typeof exports !== 'undefined' ? exports : this);
+
+
+(function(global) {
+
+  "use strict";
+
+  var fabric  = global.fabric || (global.fabric = { }),
+      extend = fabric.util.object.extend;
 
   /**
-   * Constructor
-   * @memberOf fabric.Image.filters.Convolute.prototype
-   * @param {Object} [options] Options object
+   * Noise filter class
+   * @class fabric.Image.filters.Noise
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
    */
-  initialize: function(options) {
-    options = options || { };
+  fabric.Image.filters.Noise = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.Noise.prototype */ {
 
-    this.opaque = options.opaque;
-    this.matrix = options.matrix || [ 0, 0, 0,
-      0, 1, 0,
-      0, 0, 0 ];
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'Noise',
 
-    var canvasEl = fabric.util.createCanvasElement();
-    this.tmpCtx = canvasEl.getContext('2d');
-  },
+    /**
+     * Constructor
+     * @memberOf fabric.Image.filters.Noise.prototype
+     * @param {Object} [options] Options object
+     */
+    initialize: function(options) {
+      options = options || { };
+      this.noise = options.noise || 100;
+    },
+
+    /**
+     * Applies filter to canvas element
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      var context = canvasEl.getContext('2d'),
+          imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
+          data = imageData.data,
+          noise = this.noise, rand;
+
+      for (var i = 0, len = data.length; i < len; i += 4) {
+
+        rand = (0.5 - Math.random()) * noise;
+
+        data[i] += rand;
+        data[i + 1] += rand;
+        data[i + 2] += rand;
+      }
+
+      context.putImageData(imageData, 0, 0);
+    },
+
+    /**
+     * Returns object representation of an instance
+     * @return {Object} Object representation of an instance
+     */
+    toObject: function() {
+      return extend(this.callSuper('toObject'), {
+        noise: this.noise
+      });
+    }
+  });
 
   /**
-   * @private
+   * Returns filter instance from an object representation
+   * @static
+   * @param {Object} object Object to create an instance from
+   * @return {fabric.Image.filters.Noise} Instance of fabric.Image.filters.Noise
    */
-  _createImageData: function(w, h) {
-    return this.tmpCtx.createImageData(w, h);
-  },
+  fabric.Image.filters.Noise.fromObject = function(object) {
+    return new fabric.Image.filters.Noise(object);
+  };
+
+})(typeof exports !== 'undefined' ? exports : this);
+
+
+(function(global) {
+
+  "use strict";
+
+  var fabric  = global.fabric || (global.fabric = { }),
+      extend = fabric.util.object.extend;
 
   /**
-   * Applies filter to canvas element
-   * @param {Object} canvasEl Canvas element to apply filter to
+   * Pixelate filter class
+   * @class fabric.Image.filters.Pixelate
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
    */
-  applyTo: function(canvasEl) {
-    var weights = this.matrix;
-    var context = canvasEl.getContext('2d');
-    var pixels = context.getImageData(0, 0, canvasEl.width, canvasEl.height);
+  fabric.Image.filters.Pixelate = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.Pixelate.prototype */ {
 
-    var side = Math.round(Math.sqrt(weights.length));
-    var halfSide = Math.floor(side/2);
-    var src = pixels.data;
-    var sw = pixels.width;
-    var sh = pixels.height;
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'Pixelate',
 
-    // pad output by the convolution matrix
-    var w = sw;
-    var h = sh;
-    var output = this._createImageData(w, h);
+    /**
+     * Constructor
+     * @memberOf fabric.Image.filters.Pixelate.prototype
+     * @param {Object} [options] Options object
+     */
+    initialize: function(options) {
+      options = options || { };
+      this.blocksize = options.blocksize || 4;
+    },
 
-    var dst = output.data;
+    /**
+     * Applies filter to canvas element
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      var context = canvasEl.getContext('2d'),
+          imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
+          data = imageData.data,
+          iLen = imageData.height,
+          jLen = imageData.width,
+          index, i, j, r, g, b, a;
 
-    // go through the destination image pixels
-    var alphaFac = this.opaque ? 1 : 0;
-    for (var y=0; y<h; y++) {
-      for (var x=0; x<w; x++) {
-        var sy = y;
-        var sx = x;
-        var dstOff = (y*w+x)*4;
-        // calculate the weighed sum of the source image pixels that
-        // fall under the convolution matrix
-        var r=0, g=0, b=0, a=0;
-        for (var cy=0; cy<side; cy++) {
-          for (var cx=0; cx<side; cx++) {
-            var scy = sy + cy - halfSide;
-            var scx = sx + cx - halfSide;
-            if (scy >= 0 && scy < sh && scx >= 0 && scx < sw) {
-              var srcOff = (scy*sw+scx)*4;
-              var wt = weights[cy*side+cx];
-              r += src[srcOff] * wt;
-              g += src[srcOff+1] * wt;
-              b += src[srcOff+2] * wt;
-              a += src[srcOff+3] * wt;
+      for (i = 0; i < iLen; i += this.blocksize) {
+        for (j = 0; j < jLen; j += this.blocksize) {
+
+          index = (i * 4) * jLen + (j * 4);
+
+          r = data[index];
+          g = data[index+1];
+          b = data[index+2];
+          a = data[index+3];
+
+          /*
+           blocksize: 4
+
+           [1,x,x,x,1]
+           [x,x,x,x,1]
+           [x,x,x,x,1]
+           [x,x,x,x,1]
+           [1,1,1,1,1]
+           */
+
+          for (var _i = i, _ilen = i + this.blocksize; _i < _ilen; _i++) {
+            for (var _j = j, _jlen = j + this.blocksize; _j < _jlen; _j++) {
+              index = (_i * 4) * jLen + (_j * 4);
+              data[index] = r;
+              data[index + 1] = g;
+              data[index + 2] = b;
+              data[index + 3] = a;
             }
           }
         }
-        dst[dstOff] = r;
-        dst[dstOff+1] = g;
-        dst[dstOff+2] = b;
-        dst[dstOff+3] = a + alphaFac*(255-a);
       }
+
+      context.putImageData(imageData, 0, 0);
+    },
+
+    /**
+     * Returns object representation of an instance
+     * @return {Object} Object representation of an instance
+     */
+    toObject: function() {
+      return extend(this.callSuper('toObject'), {
+        blocksize: this.blocksize
+      });
     }
-
-    context.putImageData(output, 0, 0);
-  },
+  });
 
   /**
-   * Returns json representation of filter
-   * @return {String} json representation of filter
+   * Returns filter instance from an object representation
+   * @static
+   * @param {Object} object Object to create an instance from
+   * @return {fabric.Image.filters.Pixelate} Instance of fabric.Image.filters.Pixelate
    */
-  toJSON: function() {
-    return {
-      type: this.type,
-      opaque: this.opaque,
-      matrix: this.matrix
-    };
-  }
-});
+  fabric.Image.filters.Pixelate.fromObject = function(object) {
+    return new fabric.Image.filters.Pixelate(object);
+  };
 
-/**
- * Returns filter instance from an object representation
- * @static
- * @param {Object} object Object to create an instance from
- * @return {fabric.Image.filters.Convolute} Instance of fabric.Image.filters.Convolute
- */
-fabric.Image.filters.Convolute.fromObject = function(object) {
-    return new fabric.Image.filters.Convolute(object);
-};
+})(typeof exports !== 'undefined' ? exports : this);
 
 
-/**
- * @namespace fabric.Image.filters
- * @memberOf fabric.Image
- */
-fabric.Image.filters = fabric.Image.filters || { };
+(function(global) {
 
-/**
- * GradientTransparency filter class
- * @class fabric.Image.filters.GradientTransparency
- * @memberOf fabric.Image.filters
- */
-fabric.Image.filters.GradientTransparency = fabric.util.createClass(/** @lends fabric.Image.filters.GradientTransparency.prototype */ {
+  "use strict";
+
+  var fabric  = global.fabric || (global.fabric = { }),
+      extend = fabric.util.object.extend;
 
   /**
-   * Filter type
-   * @param {String} type
-   * @default
+   * Remove white filter class
+   * @class fabric.Image.filters.RemoveWhite
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
    */
-  type: 'GradientTransparency',
+  fabric.Image.filters.RemoveWhite = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.RemoveWhite.prototype */ {
 
-  /**
-   * Constructor
-   * @memberOf fabric.Image.filters.GradientTransparency
-   * @param {Object} [options] Options object
-   */
-  initialize: function(options) {
-    options = options || { };
-    this.threshold = options.threshold || 100;
-  },
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'RemoveWhite',
 
-  /**
-   * Applies filter to canvas element
-   * @param {Object} canvasEl Canvas element to apply filter to
-   */
-  applyTo: function(canvasEl) {
-    var context = canvasEl.getContext('2d'),
-        imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
-        data = imageData.data,
-        threshold = this.threshold,
-        total = data.length;
+    /**
+     * Constructor
+     * @memberOf fabric.Image.filters.RemoveWhite.prototype
+     * @param {Object} [options] Options object
+     */
+    initialize: function(options) {
+      options = options || { };
+      this.threshold = options.threshold || 30;
+      this.distance = options.distance || 20;
+    },
 
-    for (var i = 0, len = data.length; i < len; i += 4) {
-      data[i + 3] = threshold + 255 * (total - i) / total;
-    }
+    /**
+     * Applies filter to canvas element
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      var context = canvasEl.getContext('2d'),
+          imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
+          data = imageData.data,
+          threshold = this.threshold,
+          distance = this.distance,
+          limit = 255 - threshold,
+          abs = Math.abs,
+          r, g, b;
 
-    context.putImageData(imageData, 0, 0);
-  },
+      for (var i = 0, len = data.length; i < len; i += 4) {
+        r = data[i];
+        g = data[i+1];
+        b = data[i+2];
 
-  /**
-   * Returns json representation of filter
-   * @return {String} json representation of filter
-   */
-  toJSON: function() {
-    return {
-      type: this.type,
-      threshold: this.threshold
-    };
-  }
-});
-
-/**
- * Returns filter instance from an object representation
- * @static
- * @param {Object} object Object to create an instance from
- * @return {fabric.Image.filters.GradientTransparency} Instance of fabric.Image.filters.GradientTransparency
- */
-fabric.Image.filters.GradientTransparency.fromObject = function(object) {
-  return new fabric.Image.filters.GradientTransparency(object);
-};
-
-
-/**
- * @namespace fabric.Image.filters
- * @memberOf fabric.Image
- */
-fabric.Image.filters = fabric.Image.filters || { };
-
-/**
- * Grayscale image filter class
- * @class fabric.Image.filters.Grayscale
- * @memberOf fabric.Image.filters
- */
-fabric.Image.filters.Grayscale = fabric.util.createClass(/** @lends fabric.Image.filters.Grayscale.prototype */ {
-
-  /**
-   * Filter type
-   * @param {String} type
-   * @default
-   */
-  type: 'Grayscale',
-
-  /**
-   * Applies filter to canvas element
-   * @memberOf fabric.Image.filters.Grayscale.prototype
-   * @param {Object} canvasEl Canvas element to apply filter to
-   */
-  applyTo: function(canvasEl) {
-    var context = canvasEl.getContext('2d'),
-        imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
-        data = imageData.data,
-        len = imageData.width * imageData.height * 4,
-        index = 0,
-        average;
-
-    while (index < len) {
-      average = (data[index] + data[index + 1] + data[index + 2]) / 3;
-      data[index]     = average;
-      data[index + 1] = average;
-      data[index + 2] = average;
-      index += 4;
-    }
-
-    context.putImageData(imageData, 0, 0);
-  },
-
-  /**
-   * Returns json representation of filter
-   * @return {Object} JSON representation of filter
-   */
-  toJSON: function() {
-    return { type: this.type };
-  }
-});
-
-/**
- * Returns filter instance from an object representation
- * @static
- * @return {fabric.Image.filters.Grayscale} Instance of fabric.Image.filters.Grayscale
- */
-fabric.Image.filters.Grayscale.fromObject = function() {
-  return new fabric.Image.filters.Grayscale();
-};
-
-
-/**
- * @namespace fabric.Image.filters
- * @memberOf fabric.Image
- */
-fabric.Image.filters = fabric.Image.filters || { };
-
-/**
- * Invert filter class
- * @class fabric.Image.filters.Invert
- * @memberOf fabric.Image.filters
- */
-fabric.Image.filters.Invert = fabric.util.createClass(/** @lends fabric.Image.filters.Invert.prototype */ {
-
-  /**
-   * Filter type
-   * @param {String} type
-   * @default
-   */
-  type: 'Invert',
-
-  /**
-   * Applies filter to canvas element
-   * @memberOf fabric.Image.filters.Invert.prototype
-   * @param {Object} canvasEl Canvas element to apply filter to
-   */
-  applyTo: function(canvasEl) {
-    var context = canvasEl.getContext('2d'),
-        imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
-        data = imageData.data,
-        iLen = data.length, i;
-
-    for (i = 0; i < iLen; i+=4) {
-      data[i] = 255 - data[i];
-      data[i + 1] = 255 - data[i + 1];
-      data[i + 2] = 255 - data[i + 2];
-    }
-
-    context.putImageData(imageData, 0, 0);
-  },
-
-  /**
-   * Returns json representation of filter
-   * @return {String} json representation of filter
-   */
-  toJSON: function() {
-    return { type: this.type };
-  }
-});
-
-/**
- * Returns filter instance from an object representation
- * @static
- * @return {fabric.Image.filters.Invert} Instance of fabric.Image.filters.Invert
- */
-fabric.Image.filters.Invert.fromObject = function() {
-  return new fabric.Image.filters.Invert();
-};
-
-
-/**
- * @namespace fabric.Image.filters
- * @memberOf fabric.Image
- */
-fabric.Image.filters = fabric.Image.filters || { };
-
-/**
- * Noise filter class
- * @class fabric.Image.filters.Noise
- * @memberOf fabric.Image.filters
- */
-fabric.Image.filters.Noise = fabric.util.createClass(/** @lends fabric.Image.filters.Noise.prototype */ {
-
-  /**
-   * Filter type
-   * @param {String} type
-   * @default
-   */
-  type: 'Noise',
-
-  /**
-   * Constructor
-   * @memberOf fabric.Image.filters.Noise.prototype
-   * @param {Object} [options] Options object
-   */
-  initialize: function(options) {
-    options = options || { };
-    this.noise = options.noise || 100;
-  },
-
-  /**
-   * Applies filter to canvas element
-   * @param {Object} canvasEl Canvas element to apply filter to
-   */
-  applyTo: function(canvasEl) {
-    var context = canvasEl.getContext('2d'),
-        imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
-        data = imageData.data,
-        noise = this.noise, rand;
-
-    for (var i = 0, len = data.length; i < len; i += 4) {
-
-      rand = (0.5 - Math.random()) * noise;
-
-      data[i] += rand;
-      data[i + 1] += rand;
-      data[i + 2] += rand;
-    }
-
-    context.putImageData(imageData, 0, 0);
-  },
-
-  /**
-   * Returns json representation of filter
-   * @return {String} json representation of filter
-   */
-  toJSON: function() {
-    return {
-      type: this.type,
-      noise: this.noise
-    };
-  }
-});
-
-/**
- * Returns filter instance from an object representation
- * @static
- * @param {Object} object Object to create an instance from
- * @return {fabric.Image.filters.Noise} Instance of fabric.Image.filters.Noise
- */
-fabric.Image.filters.Noise.fromObject = function(object) {
-  return new fabric.Image.filters.Noise(object);
-};
-
-
-/**
- * @namespace fabric.Image.filters
- * @memberOf fabric.Image
- */
-fabric.Image.filters = fabric.Image.filters || { };
-
-/**
- * Pixelate filter class
- * @class fabric.Image.filters.Pixelate
- * @memberOf fabric.Image.filters
- */
-fabric.Image.filters.Pixelate = fabric.util.createClass(/** @lends fabric.Image.filters.Pixelate.prototype */ {
-
-  /**
-   * Filter type
-   * @param {String} type
-   * @default
-   */
-  type: 'Pixelate',
-
-  /**
-   * Constructor
-   * @memberOf fabric.Image.filters.Pixelate.prototype
-   * @param {Object} [options] Options object
-   */
-  initialize: function(options) {
-    options = options || { };
-    this.blocksize = options.blocksize || 4;
-  },
-
-  /**
-   * Applies filter to canvas element
-   * @param {Object} canvasEl Canvas element to apply filter to
-   */
-  applyTo: function(canvasEl) {
-    var context = canvasEl.getContext('2d'),
-        imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
-        data = imageData.data,
-        iLen = imageData.height,
-        jLen = imageData.width,
-        index, i, j, r, g, b, a;
-
-    for (i = 0; i < iLen; i += this.blocksize) {
-      for (j = 0; j < jLen; j += this.blocksize) {
-
-        index = (i * 4) * jLen + (j * 4);
-
-        r = data[index];
-        g = data[index+1];
-        b = data[index+2];
-        a = data[index+3];
-
-        /*
-         blocksize: 4
-
-         [1,x,x,x,1]
-         [x,x,x,x,1]
-         [x,x,x,x,1]
-         [x,x,x,x,1]
-         [1,1,1,1,1]
-         */
-
-        for (var _i = i, _ilen = i + this.blocksize; _i < _ilen; _i++) {
-          for (var _j = j, _jlen = j + this.blocksize; _j < _jlen; _j++) {
-            index = (_i * 4) * jLen + (_j * 4);
-            data[index] = r;
-            data[index + 1] = g;
-            data[index + 2] = b;
-            data[index + 3] = a;
-          }
+        if (r > limit &&
+            g > limit &&
+            b > limit &&
+            abs(r-g) < distance &&
+            abs(r-b) < distance &&
+            abs(g-b) < distance
+        ) {
+          data[i+3] = 1;
         }
       }
+
+      context.putImageData(imageData, 0, 0);
+    },
+
+    /**
+     * Returns object representation of an instance
+     * @return {Object} Object representation of an instance
+     */
+    toObject: function() {
+      return extend(this.callSuper('toObject'), {
+        threshold: this.threshold,
+        distance: this.distance
+      });
     }
-
-    context.putImageData(imageData, 0, 0);
-  },
+  });
 
   /**
-   * Returns json representation of filter
-   * @return {String} json representation of filter
+   * Returns filter instance from an object representation
+   * @static
+   * @param {Object} object Object to create an instance from
+   * @return {fabric.Image.filters.RemoveWhite} Instance of fabric.Image.filters.RemoveWhite
    */
-  toJSON: function() {
-    return {
-      type: this.type,
-      blocksize: this.blocksize
-    };
-  }
-});
+  fabric.Image.filters.RemoveWhite.fromObject = function(object) {
+    return new fabric.Image.filters.RemoveWhite(object);
+  };
 
-/**
- * Returns filter instance from an object representation
- * @static
- * @param {Object} object Object to create an instance from
- * @return {fabric.Image.filters.Pixelate} Instance of fabric.Image.filters.Pixelate
- */
-fabric.Image.filters.Pixelate.fromObject = function(object) {
-  return new fabric.Image.filters.Pixelate(object);
-};
+})(typeof exports !== 'undefined' ? exports : this);
 
 
-/**
- * @namespace fabric.Image.filters
- * @memberOf fabric.Image
- */
-fabric.Image.filters = fabric.Image.filters || { };
+(function(global) {
 
-/**
- * Remove white filter class
- * @class fabric.Image.filters.RemoveWhite
- * @memberOf fabric.Image.filters
- */
-fabric.Image.filters.RemoveWhite = fabric.util.createClass(/** @lends fabric.Image.filters.RemoveWhite.prototype */ {
+  "use strict";
+
+  var fabric  = global.fabric || (global.fabric = { });
 
   /**
-   * Filter type
-   * @param {String} type
-   * @default
+   * Sepia filter class
+   * @class fabric.Image.filters.Sepia
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
    */
-  type: 'RemoveWhite',
+  fabric.Image.filters.Sepia = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.Sepia.prototype */ {
 
-  /**
-   * Constructor
-   * @memberOf fabric.Image.filters.RemoveWhite.prototype
-   * @param {Object} [options] Options object
-   */
-  initialize: function(options) {
-    options = options || { };
-    this.threshold = options.threshold || 30;
-    this.distance = options.distance || 20;
-  },
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'Sepia',
 
-  /**
-   * Applies filter to canvas element
-   * @param {Object} canvasEl Canvas element to apply filter to
-   */
-  applyTo: function(canvasEl) {
-    var context = canvasEl.getContext('2d'),
-        imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
-        data = imageData.data,
-        threshold = this.threshold,
-        distance = this.distance,
-        limit = 255 - threshold,
-        abs = Math.abs,
-        r, g, b;
+    /**
+     * Applies filter to canvas element
+     * @memberOf fabric.Image.filters.Sepia.prototype
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      var context = canvasEl.getContext('2d'),
+          imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
+          data = imageData.data,
+          iLen = data.length, i, avg;
 
-    for (var i = 0, len = data.length; i < len; i += 4) {
-      r = data[i];
-      g = data[i+1];
-      b = data[i+2];
-
-      if (r > limit &&
-          g > limit &&
-          b > limit &&
-          abs(r-g) < distance &&
-          abs(r-b) < distance &&
-          abs(g-b) < distance
-      ) {
-        data[i+3] = 1;
+      for (i = 0; i < iLen; i+=4) {
+        avg = 0.3  * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
+        data[i] = avg + 100;
+        data[i + 1] = avg + 50;
+        data[i + 2] = avg + 255;
       }
+
+      context.putImageData(imageData, 0, 0);
     }
-
-    context.putImageData(imageData, 0, 0);
-  },
+  });
 
   /**
-   * Returns json representation of filter
-   * @return {Object} JSON representation of filter
+   * Returns filter instance from an object representation
+   * @static
+   * @return {fabric.Image.filters.Sepia} Instance of fabric.Image.filters.Sepia
    */
-  toJSON: function() {
-    return {
-      type: this.type,
-      threshold: this.threshold,
-      distance: this.distance
-    };
-  }
-});
+  fabric.Image.filters.Sepia.fromObject = function() {
+    return new fabric.Image.filters.Sepia();
+  };
 
-/**
- * Returns filter instance from an object representation
- * @static
- * @param {Object} object Object to create an instance from
- * @return {fabric.Image.filters.RemoveWhite} Instance of fabric.Image.filters.RemoveWhite
- */
-fabric.Image.filters.RemoveWhite.fromObject = function(object) {
-  return new fabric.Image.filters.RemoveWhite(object);
-};
+})(typeof exports !== 'undefined' ? exports : this);
 
 
-/**
- * @namespace fabric.Image.filters
- * @memberOf fabric.Image
- */
-fabric.Image.filters = fabric.Image.filters || { };
+(function(global) {
 
-/**
- * Sepia filter class
- * @class fabric.Image.filters.Sepia
- * @memberOf fabric.Image.filters
- */
-fabric.Image.filters.Sepia = fabric.util.createClass(/** @lends fabric.Image.filters.Sepia.prototype */ {
+  "use strict";
+
+  var fabric  = global.fabric || (global.fabric = { });
 
   /**
-   * Filter type
-   * @param {String} type
-   * @default
+   * Sepia2 filter class
+   * @class fabric.Image.filters.Sepia2
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
    */
-  type: 'Sepia',
+  fabric.Image.filters.Sepia2 = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.Sepia2.prototype */ {
 
-  /**
-   * Applies filter to canvas element
-   * @memberOf fabric.Image.filters.Sepia.prototype
-   * @param {Object} canvasEl Canvas element to apply filter to
-   */
-  applyTo: function(canvasEl) {
-    var context = canvasEl.getContext('2d'),
-        imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
-        data = imageData.data,
-        iLen = data.length, i, avg;
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'Sepia2',
 
-    for (i = 0; i < iLen; i+=4) {
-      avg = 0.3  * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
-      data[i] = avg + 100;
-      data[i + 1] = avg + 50;
-      data[i + 2] = avg + 255;
-    }
+    /**
+     * Applies filter to canvas element
+     * @memberOf fabric.Image.filters.Sepia.prototype
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      var context = canvasEl.getContext('2d'),
+          imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
+          data = imageData.data,
+          iLen = data.length, i, r, g, b;
 
-    context.putImageData(imageData, 0, 0);
-  },
+      for (i = 0; i < iLen; i+=4) {
+        r = data[i];
+        g = data[i + 1];
+        b = data[i + 2];
 
-  /**
-   * Returns json representation of filter
-   * @return {String} json representation of filter
-   */
-  toJSON: function() {
-    return { type: this.type };
-  }
-});
-
-/**
- * Returns filter instance from an object representation
- * @static
- * @return {fabric.Image.filters.Sepia} Instance of fabric.Image.filters.Sepia
- */
-fabric.Image.filters.Sepia.fromObject = function() {
-  return new fabric.Image.filters.Sepia();
-};
-
-
-/**
- * @namespace fabric.Image.filters
- * @memberOf fabric.Image
- */
-fabric.Image.filters = fabric.Image.filters || { };
-
-/**
- * Sepia2 filter class
- * @class fabric.Image.filters.Sepia2
- * @memberOf fabric.Image.filters
- */
-fabric.Image.filters.Sepia2 = fabric.util.createClass(/** @lends fabric.Image.filters.Sepia2.prototype */ {
-
-  /**
-   * Filter type
-   * @param {String} type
-   * @default
-   */
-  type: 'Sepia2',
-
-  /**
-   * Applies filter to canvas element
-   * @memberOf fabric.Image.filters.Sepia.prototype
-   * @param {Object} canvasEl Canvas element to apply filter to
-   */
-  applyTo: function(canvasEl) {
-    var context = canvasEl.getContext('2d'),
-        imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
-        data = imageData.data,
-        iLen = data.length, i, r, g, b;
-
-    for (i = 0; i < iLen; i+=4) {
-      r = data[i];
-      g = data[i + 1];
-      b = data[i + 2];
-
-      data[i] = (r * 0.393 + g * 0.769 + b * 0.189 ) / 1.351;
-      data[i + 1] = (r * 0.349 + g * 0.686 + b * 0.168 ) / 1.203;
-      data[i + 2] = (r * 0.272 + g * 0.534 + b * 0.131 ) / 2.140;
-    }
-
-    context.putImageData(imageData, 0, 0);
-  },
-
-  /**
-   * Returns json representation of filter
-   * @return {String} json representation of filter
-   */
-  toJSON: function() {
-    return { type: this.type };
-  }
-});
-
-/**
- * Returns filter instance from an object representation
- * @static
- * @return {fabric.Image.filters.Sepia2} Instance of fabric.Image.filters.Sepia2
- */
-fabric.Image.filters.Sepia2.fromObject = function() {
-  return new fabric.Image.filters.Sepia2();
-};
-
-
-/**
- * @namespace fabric.Image.filters
- * @memberOf fabric.Image
- */
-fabric.Image.filters = fabric.Image.filters || { };
-
-/**
- * Tint filter class
- * @class fabric.Image.filters.Tint
- * @memberOf fabric.Image.filters
- */
-fabric.Image.filters.Tint = fabric.util.createClass(/** @lends fabric.Image.filters.Tint.prototype */ {
-
-  /**
-   * Filter type
-   * @param {String} type
-   * @default
-   */
-  type: 'Tint',
-
-  /**
-   * Constructor
-   * @memberOf fabric.Image.filters.Tint.prototype
-   * @param {Object} [options] Options object
-   */
-  initialize: function(options) {
-    options = options || { };
-    this.color = options.color || 0;
-  },
-
-  /**
-   * Applies filter to canvas element
-   * @param {Object} canvasEl Canvas element to apply filter to
-   */
-  applyTo: function(canvasEl) {
-    var context = canvasEl.getContext('2d'),
-        imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
-        data = imageData.data,
-        iLen = data.length, i, a;
-
-    var rgb = parseInt(this.color, 10).toString(16);
-
-    var cr = parseInt('0x' + rgb.substr(0, 2), 16);
-    var cg = parseInt('0x' + rgb.substr(2, 2), 16);
-    var cb = parseInt('0x' + rgb.substr(4, 2), 16);
-
-    for (i = 0; i < iLen; i+=4) {
-      a = data[i+3];
-
-      if (a > 0){
-        data[i] = cr;
-        data[i+1] = cg;
-        data[i+2] = cb;
+        data[i] = (r * 0.393 + g * 0.769 + b * 0.189 ) / 1.351;
+        data[i + 1] = (r * 0.349 + g * 0.686 + b * 0.168 ) / 1.203;
+        data[i + 2] = (r * 0.272 + g * 0.534 + b * 0.131 ) / 2.140;
       }
-    }
 
-    context.putImageData(imageData, 0, 0);
-  },
+      context.putImageData(imageData, 0, 0);
+    }
+  });
 
   /**
-   * Returns json representation of filter
-   * @return {Object} json representation of filter
+   * Returns filter instance from an object representation
+   * @static
+   * @return {fabric.Image.filters.Sepia2} Instance of fabric.Image.filters.Sepia2
    */
-  toJSON: function() {
-    return {
-      type: this.type,
-      color: this.color
-    };
-  }
-});
+  fabric.Image.filters.Sepia2.fromObject = function() {
+    return new fabric.Image.filters.Sepia2();
+  };
 
-/**
- * Returns filter instance from an object representation
- * @static
- * @param {Object} object Object to create an instance from
- * @return {fabric.Image.filters.Tint} Instance of fabric.Image.filters.Tint
- */
-fabric.Image.filters.Tint.fromObject = function(object) {
-  return new fabric.Image.filters.Tint(object);
-};
+})(typeof exports !== 'undefined' ? exports : this);
+
+
+(function(global) {
+
+  "use strict";
+
+  var fabric  = global.fabric || (global.fabric = { }),
+      extend = fabric.util.object.extend;
+
+  /**
+   * Tint filter class
+   * @class fabric.Image.filters.Tint
+   * @memberOf fabric.Image.filters
+   * @extends fabric.Image.filters.BaseFilter
+   */
+  fabric.Image.filters.Tint = fabric.util.createClass(fabric.Image.filters.BaseFilter, /** @lends fabric.Image.filters.Tint.prototype */ {
+
+    /**
+     * Filter type
+     * @param {String} type
+     * @default
+     */
+    type: 'Tint',
+
+    /**
+     * Constructor
+     * @memberOf fabric.Image.filters.Tint.prototype
+     * @param {Object} [options] Options object
+     */
+    initialize: function(options) {
+      options = options || { };
+      this.color = options.color || 0;
+    },
+
+    /**
+     * Applies filter to canvas element
+     * @param {Object} canvasEl Canvas element to apply filter to
+     */
+    applyTo: function(canvasEl) {
+      var context = canvasEl.getContext('2d'),
+          imageData = context.getImageData(0, 0, canvasEl.width, canvasEl.height),
+          data = imageData.data,
+          iLen = data.length, i, a;
+
+      var rgb = parseInt(this.color, 10).toString(16);
+
+      var cr = parseInt('0x' + rgb.substr(0, 2), 16);
+      var cg = parseInt('0x' + rgb.substr(2, 2), 16);
+      var cb = parseInt('0x' + rgb.substr(4, 2), 16);
+
+      for (i = 0; i < iLen; i+=4) {
+        a = data[i+3];
+
+        if (a > 0){
+          data[i] = cr;
+          data[i+1] = cg;
+          data[i+2] = cb;
+        }
+      }
+
+      context.putImageData(imageData, 0, 0);
+    },
+
+    /**
+     * Returns object representation of an instance
+     * @return {Object} Object representation of an instance
+     */
+    toObject: function() {
+      return extend(this.callSuper('toObject'), {
+        color: this.color
+      });
+    }
+  });
+
+  /**
+   * Returns filter instance from an object representation
+   * @static
+   * @param {Object} object Object to create an instance from
+   * @return {fabric.Image.filters.Tint} Instance of fabric.Image.filters.Tint
+   */
+  fabric.Image.filters.Tint.fromObject = function(object) {
+    return new fabric.Image.filters.Tint(object);
+  };
+
+})(typeof exports !== 'undefined' ? exports : this);
 
 
 (function(global) {
@@ -16944,8 +17249,6 @@ fabric.Image.filters.Tint.fromObject = function(object) {
 
       this._setBoundaries(ctx, textLines);
       this._totalLineHeight = 0;
-
-      this.setCoords();
     },
 
     /**
@@ -17060,15 +17363,28 @@ fabric.Image.filters.Tint.fromObject = function(object) {
      * @private
      * @param {String} method Method name ("fillText" or "strokeText")
      * @param {CanvasRenderingContext2D} ctx Context to render on
-     * @param {String} line Text to render
+     * @param {String} line Chars to render
      * @param {Number} left Left position of text
      * @param {Number} top Top position of text
      */
-    _drawTextLine: function(method, ctx, line, left, top) {
+    _drawChars: function(method, ctx, chars, left, top) {
+      ctx[method](chars, left, top);
+    },
+
+    /**
+     * @private
+     * @param {String} method Method name ("fillText" or "strokeText")
+     * @param {CanvasRenderingContext2D} ctx Context to render on
+     * @param {String} line Text to render
+     * @param {Number} left Left position of text
+     * @param {Number} top Top position of text
+     * @param {Number} lineIndex Index of a line in a text
+     */
+    _drawTextLine: function(method, ctx, line, left, top, lineIndex) {
 
       // short-circuit
       if (this.textAlign !== 'justify') {
-        ctx[method](line, left, top);
+        this._drawChars(method, ctx, line, left, top, lineIndex);
         return;
       }
 
@@ -17086,12 +17402,12 @@ fabric.Image.filters.Tint.fromObject = function(object) {
 
         var leftOffset = 0;
         for (var i = 0, len = words.length; i < len; i++) {
-          ctx[method](words[i], left + leftOffset, top);
+          this._drawChars(method, ctx, words[i], left + leftOffset, top, lineIndex);
           leftOffset += ctx.measureText(words[i]).width + spaceWidth;
         }
       }
       else {
-        ctx[method](line, left, top);
+        this._drawChars(method, ctx, line, left, top, lineIndex);
       }
     },
 
@@ -17130,7 +17446,7 @@ fabric.Image.filters.Tint.fromObject = function(object) {
      * @param {Array} textLines Array of all text lines
      */
     _renderTextFill: function(ctx, textLines) {
-      if (!this.fill) return;
+      if (!this.fill && !this.skipFillStrokeCheck) return;
 
       this._boundaries = [ ];
       for (var i = 0, len = textLines.length; i < len; i++) {
@@ -17139,7 +17455,8 @@ fabric.Image.filters.Tint.fromObject = function(object) {
           ctx,
           textLines[i],
           this._getLeftOffset(),
-          this._getTopOffset() + (i * this.fontSize * this.lineHeight) + this.fontSize
+          this._getTopOffset() + (i * this.fontSize * this.lineHeight) + this.fontSize,
+          i
         );
       }
     },
@@ -17150,7 +17467,7 @@ fabric.Image.filters.Tint.fromObject = function(object) {
      * @param {Array} textLines Array of all text lines
      */
     _renderTextStroke: function(ctx, textLines) {
-      if (!this.stroke) return;
+      if (!this.stroke && !this.skipFillStrokeCheck) return;
 
       ctx.save();
       if (this.strokeDashArray) {
@@ -17168,7 +17485,8 @@ fabric.Image.filters.Tint.fromObject = function(object) {
           ctx,
           textLines[i],
           this._getLeftOffset(),
-          this._getTopOffset() + (i * this.fontSize * this.lineHeight) + this.fontSize
+          this._getTopOffset() + (i * this.fontSize * this.lineHeight) + this.fontSize,
+          i
         );
       }
       ctx.closePath();
@@ -17571,6 +17889,8 @@ fabric.Image.filters.Tint.fromObject = function(object) {
   /**
    * List of attribute names to account for when parsing SVG element (used by {@link fabric.Text.fromElement})
    * @static
+   * @memberOf fabric.Text
+   * @see: http://www.w3.org/TR/SVG/text.html#TextElement
    */
   fabric.Text.ATTRIBUTE_NAMES = fabric.SHARED_ATTRIBUTES.concat(
     'x y font-family font-style font-weight font-size text-decoration'.split(' '));
@@ -17578,12 +17898,12 @@ fabric.Image.filters.Tint.fromObject = function(object) {
   /**
    * Returns fabric.Text instance from an SVG element (<b>not yet implemented</b>)
    * @static
+   * @memberOf fabric.Text
    * @param {SVGElement} element Element to parse
    * @param {Object} [options] Options object
    * @return {fabric.Text} Instance of fabric.Text
    */
   fabric.Text.fromElement = function(element, options) {
-
     if (!element) {
       return null;
     }
@@ -17611,6 +17931,7 @@ fabric.Image.filters.Tint.fromObject = function(object) {
   /**
    * Returns fabric.Text instance from an object representation
    * @static
+   * @memberOf fabric.Text
    * @param object {Object} object Object to create an instance from
    * @return {fabric.Text} Instance of fabric.Text
    */
@@ -17795,25 +18116,25 @@ fabric.util.object.extend(fabric.Text.prototype, {
     }
   };
 
-  fabric.loadSVGFromURL = function(url, callback) {
+  fabric.loadSVGFromURL = function(url, callback, reviver) {
     url = url.replace(/^\n\s*/, '').replace(/\?.*$/, '').trim();
     if (url.indexOf('http') !== 0) {
       request_fs(url, function(body) {
-        fabric.loadSVGFromString(body, callback);
+        fabric.loadSVGFromString(body, callback, reviver);
       });
     }
     else {
       request(url, '', function(body) {
-        fabric.loadSVGFromString(body, callback);
+        fabric.loadSVGFromString(body, callback, reviver);
       });
     }
   };
 
-  fabric.loadSVGFromString = function(string, callback) {
+  fabric.loadSVGFromString = function(string, callback, reviver) {
     var doc = new DOMParser().parseFromString(string);
     fabric.parseSVGDocument(doc.documentElement, function(results, options) {
-      callback(results, options);
-    });
+      callback && callback(results, options);
+    }, reviver);
   };
 
   fabric.util.getScript = function(url, callback) {
@@ -17828,8 +18149,10 @@ fabric.util.object.extend(fabric.Text.prototype, {
       var oImg = new fabric.Image(img);
 
       oImg._initConfig(object);
-      oImg._initFilters(object);
-      callback(oImg);
+      oImg._initFilters(object, function(filters) {
+        oImg.filters = filters || [ ];
+        callback && callback(oImg);
+      });
     });
   };
 

@@ -251,8 +251,6 @@
 
       this._setBoundaries(ctx, textLines);
       this._totalLineHeight = 0;
-
-      this.setCoords();
     },
 
     /**
@@ -367,15 +365,28 @@
      * @private
      * @param {String} method Method name ("fillText" or "strokeText")
      * @param {CanvasRenderingContext2D} ctx Context to render on
-     * @param {String} line Text to render
+     * @param {String} line Chars to render
      * @param {Number} left Left position of text
      * @param {Number} top Top position of text
      */
-    _drawTextLine: function(method, ctx, line, left, top) {
+    _drawChars: function(method, ctx, chars, left, top) {
+      ctx[method](chars, left, top);
+    },
+
+    /**
+     * @private
+     * @param {String} method Method name ("fillText" or "strokeText")
+     * @param {CanvasRenderingContext2D} ctx Context to render on
+     * @param {String} line Text to render
+     * @param {Number} left Left position of text
+     * @param {Number} top Top position of text
+     * @param {Number} lineIndex Index of a line in a text
+     */
+    _drawTextLine: function(method, ctx, line, left, top, lineIndex) {
 
       // short-circuit
       if (this.textAlign !== 'justify') {
-        ctx[method](line, left, top);
+        this._drawChars(method, ctx, line, left, top, lineIndex);
         return;
       }
 
@@ -393,12 +404,12 @@
 
         var leftOffset = 0;
         for (var i = 0, len = words.length; i < len; i++) {
-          ctx[method](words[i], left + leftOffset, top);
+          this._drawChars(method, ctx, words[i], left + leftOffset, top, lineIndex);
           leftOffset += ctx.measureText(words[i]).width + spaceWidth;
         }
       }
       else {
-        ctx[method](line, left, top);
+        this._drawChars(method, ctx, line, left, top, lineIndex);
       }
     },
 
@@ -437,7 +448,7 @@
      * @param {Array} textLines Array of all text lines
      */
     _renderTextFill: function(ctx, textLines) {
-      if (!this.fill) return;
+      if (!this.fill && !this.skipFillStrokeCheck) return;
 
       this._boundaries = [ ];
       for (var i = 0, len = textLines.length; i < len; i++) {
@@ -446,7 +457,8 @@
           ctx,
           textLines[i],
           this._getLeftOffset(),
-          this._getTopOffset() + (i * this.fontSize * this.lineHeight) + this.fontSize
+          this._getTopOffset() + (i * this.fontSize * this.lineHeight) + this.fontSize,
+          i
         );
       }
     },
@@ -457,7 +469,7 @@
      * @param {Array} textLines Array of all text lines
      */
     _renderTextStroke: function(ctx, textLines) {
-      if (!this.stroke) return;
+      if (!this.stroke && !this.skipFillStrokeCheck) return;
 
       ctx.save();
       if (this.strokeDashArray) {
@@ -475,7 +487,8 @@
           ctx,
           textLines[i],
           this._getLeftOffset(),
-          this._getTopOffset() + (i * this.fontSize * this.lineHeight) + this.fontSize
+          this._getTopOffset() + (i * this.fontSize * this.lineHeight) + this.fontSize,
+          i
         );
       }
       ctx.closePath();
@@ -878,6 +891,8 @@
   /**
    * List of attribute names to account for when parsing SVG element (used by {@link fabric.Text.fromElement})
    * @static
+   * @memberOf fabric.Text
+   * @see: http://www.w3.org/TR/SVG/text.html#TextElement
    */
   fabric.Text.ATTRIBUTE_NAMES = fabric.SHARED_ATTRIBUTES.concat(
     'x y font-family font-style font-weight font-size text-decoration'.split(' '));
@@ -885,12 +900,12 @@
   /**
    * Returns fabric.Text instance from an SVG element (<b>not yet implemented</b>)
    * @static
+   * @memberOf fabric.Text
    * @param {SVGElement} element Element to parse
    * @param {Object} [options] Options object
    * @return {fabric.Text} Instance of fabric.Text
    */
   fabric.Text.fromElement = function(element, options) {
-
     if (!element) {
       return null;
     }
@@ -918,6 +933,7 @@
   /**
    * Returns fabric.Text instance from an object representation
    * @static
+   * @memberOf fabric.Text
    * @param object {Object} object Object to create an instance from
    * @return {fabric.Text} Instance of fabric.Text
    */
